@@ -125,6 +125,9 @@ typedef struct VP8ThreadData {
 typedef struct VP8Frame {
     ThreadFrame tf;
     AVBufferRef *seg_map;
+
+    AVBufferRef *hwaccel_priv_buf;
+    void *hwaccel_picture_private;
 } VP8Frame;
 
 typedef struct VP8intmv {
