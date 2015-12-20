@@ -520,9 +520,9 @@ static int vp7_decode_frame_header(VP8Context *s, const uint8_t *buf, int buf_si
         return AVERROR_INVALIDDATA;
     }
 
-    s->keyframe  = !(buf[0] & 1);
-    s->invisible = 0;
-    part1_size   = AV_RL24(buf) >> 4;
+    s->keyframe    = !(buf[0] & 1);
+    s->invisible   = 0;
+    s->header_size = part1_size = AV_RL24(buf) >> 4;
 
     if (buf_size < 4 - s->profile + part1_size) {
         av_log(s->avctx, AV_LOG_ERROR, "Buffer size %d is too small, needed : %d\n", buf_size, 4 - s->profile + part1_size);
@@ -665,10 +665,10 @@ static int vp8_decode_frame_header(VP8Context *s, const uint8_t *buf, int buf_si
         return AVERROR_INVALIDDATA;
     }
 
-    s->keyframe  = !(buf[0] & 1);
-    s->profile   =  (buf[0]>>1) & 7;
-    s->invisible = !(buf[0] & 0x10);
-    header_size  = AV_RL24(buf) >> 5;
+    s->keyframe    = !(buf[0] & 1);
+    s->profile     =  (buf[0]>>1) & 7;
+    s->invisible   = !(buf[0] & 0x10);
+    s->header_size = header_size = AV_RL24(buf) >> 5;
     buf      += 3;
     buf_size -= 3;
 

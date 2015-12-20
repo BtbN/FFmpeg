@@ -156,6 +156,8 @@ typedef struct VP8Context {
     VP8intmv mv_min;
     VP8intmv mv_max;
 
+    int header_size;
+
     int8_t sign_bias[4]; ///< one state [0, 1] per ref frame type
     int ref_count[3];
 

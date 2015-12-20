@@ -29,43 +29,69 @@ static void fill_picture_parameters(AVCodecContext              *avctx,
                                     const VP8Context            *h,
                                     VAPictureParameterBufferVP8 *pp)
 {
+    int i, j;
+
     pp->frame_width = avctx->width;
     pp->frame_height = avctx->height;
 
-    pp->last_ref_frame = ff_vaapi_get_surface_id(h->framep[VP56_FRAME_PREVIOUS]->tf.f);
-    pp->golden_ref_frame = ff_vaapi_get_surface_id(h->framep[VP56_FRAME_GOLDEN]->tf.f);
-    pp->alt_ref_frame = ff_vaapi_get_surface_id(h->framep[VP56_FRAME_GOLDEN2]->tf.f);
+    if (h->framep[VP56_FRAME_PREVIOUS]->tf.f->buf[0]) {
+        pp->last_ref_frame = ff_vaapi_get_surface_id(h->framep[VP56_FRAME_PREVIOUS]->tf.f);
+    } else {
+        pp->last_ref_frame = VA_INVALID_ID;
+    }
+
+    if (h->framep[VP56_FRAME_GOLDEN]->tf.f->buf[0]) {
+        pp->golden_ref_frame = ff_vaapi_get_surface_id(h->framep[VP56_FRAME_GOLDEN]->tf.f);
+    } else {
+        pp->golden_ref_frame = VA_INVALID_ID;
+    }
+
+    if (h->framep[VP56_FRAME_GOLDEN2]->tf.f->buf[0]) {
+        pp->alt_ref_frame = ff_vaapi_get_surface_id(h->framep[VP56_FRAME_GOLDEN2]->tf.f);
+    } else {
+        pp->alt_ref_frame = VA_INVALID_ID;
+    }
+
     pp->out_of_loop_frame = VA_INVALID_ID;
 
-    pp->pic_fields.bits.key_frame;
-    pp->pic_fields.bits.version;
-    pp->pic_fields.bits.segmentation_enabled;
-    pp->pic_fields.bits.update_mb_segmentation_map;
-    pp->pic_fields.bits.update_segment_feature_data;
-    pp->pic_fields.bits.filter_type;
-    pp->pic_fields.bits.sharpness_level;
-    pp->pic_fields.bits.loop_filter_adj_enable;
-    pp->pic_fields.bits.mode_ref_lf_delta_update;
-    pp->pic_fields.bits.sign_bias_golden; 
-    pp->pic_fields.bits.sign_bias_alternate;
-    pp->pic_fields.bits.mb_no_coeff_skip;
-    pp->pic_fields.bits.loop_filter_disable;
+    pp->pic_fields.bits.key_frame = !h->keyframe;
+    pp->pic_fields.bits.version = h->profile;
+    pp->pic_fields.bits.segmentation_enabled = h->segmentation.enabled;
+    pp->pic_fields.bits.update_mb_segmentation_map = h->segmentation.update_map;
+    pp->pic_fields.bits.update_segment_feature_data = h->segmentation.absolute_vals;
+    pp->pic_fields.bits.filter_type = h->filter.simple;
+    pp->pic_fields.bits.sharpness_level = h->filter.sharpness;
+    pp->pic_fields.bits.loop_filter_adj_enable = h->lf_delta.enabled;
+    pp->pic_fields.bits.mode_ref_lf_delta_update = h->lf_delta.update;
+    pp->pic_fields.bits.sign_bias_golden = h->sign_bias[VP56_FRAME_GOLDEN];
+    pp->pic_fields.bits.sign_bias_alternate = h->sign_bias[VP56_FRAME_GOLDEN2];
+    pp->pic_fields.bits.mb_no_coeff_skip = h->update_probabilities;
+    pp->pic_fields.bits.loop_filter_disable = h->mbskip_enabled;
 
-    pp->mb_segment_tree_probs;
+    for (i = 0; i < 3; i++)
+        pp->mb_segment_tree_probs[i] = h->prob->segmentid[i];
 
-    pp->loop_filter_level;
-    pp->loop_filter_deltas_ref_frame;
-    pp->loop_filter_deltas_mode;
+    for (i = 0; i < 4; i++) {
+        pp->loop_filter_level[i] = h->segmentation.filter_level[i]; ///TODO: is this the right value?
+        pp->loop_filter_deltas_ref_frame[i] = h->lf_delta.ref[i];
+        pp->loop_filter_deltas_mode[i] = h->lf_delta.mode[MODE_I4x4 + i];
+    }
 
-    pp->prob_skip_false;
-    pp->prob_intra;
-    pp->prob_last;
-    pp->prob_gf;
+    pp->prob_skip_false = h->prob->mbskip;
+    pp->prob_intra = h->prob->intra;
+    pp->prob_last = h->prob->last;
+    pp->prob_gf = h->prob->golden;
 
-    pp->y_mode_probs;
-    pp->uv_mode_probs;
-    pp->mv_probs;
-    
+    for (i = 0; i < 4; i++)
+        pp->y_mode_probs[i] = h->prob->pred16x16[i];
+
+    for (i = 0; i < 3; i++)
+        pp->uv_mode_probs[i] = h->prob->pred8x8c[i];
+
+    for (i = 0; i < 2; i++)
+        for (j = 0; j < 19; j++)
+            pp->mv_probs[i][j] = h->prob->mvc[i][j];
+
     pp->bool_coder_ctx.range;
     pp->bool_coder_ctx.value;
     pp->bool_coder_ctx.count;
@@ -150,9 +176,14 @@ static int vaapi_vp8_decode_slice(AVCodecContext *avctx,
     if (!slice_param)
         return -1;
 
-    slice_param->macroblock_offset;
-    slice_param->num_of_partitions;
-    slice_param->partition_size;
+    slice_param->macroblock_offset = h->header_size;
+    slice_param->num_of_partitions = h->num_coeff_partitions + 1;
+
+    for (i = 0; i < h->num_coeff_partitions; i++) {
+        slice_param->partition_size[i + 1] = (8 - h->coeff_partition[i].bits) % 8;
+    }
+
+    slice_param->partition_size[0] = (8 - h->c.bits) % 8;
 
     return 0;
 }
