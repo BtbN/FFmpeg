@@ -59,6 +59,7 @@ int ff_vaapi_context_init(AVCodecContext *avctx)
     vactx->pic_param_buf_id     = VA_INVALID_ID;
     vactx->iq_matrix_buf_id     = VA_INVALID_ID;
     vactx->bitplane_buf_id      = VA_INVALID_ID;
+    vactx->probability_buf_id   = VA_INVALID_ID;
 
     return 0;
 }
@@ -87,6 +88,11 @@ int ff_vaapi_render_picture(FFVAContext *vactx, VASurfaceID surface)
     if (vactx->bitplane_buf_id != VA_INVALID_ID) {
         vaUnmapBuffer(vactx->display, vactx->bitplane_buf_id);
         va_buffers[n_va_buffers++] = vactx->bitplane_buf_id;
+    }
+
+    if (vactx->probability_buf_id != VA_INVALID_ID) {
+        vaUnmapBuffer(vactx->display, vactx->probability_buf_id);
+        va_buffers[n_va_buffers++] = vactx->probability_buf_id;
     }
 
     if (vaBeginPicture(vactx->display, vactx->context_id,
@@ -175,6 +181,11 @@ uint8_t *ff_vaapi_alloc_bitplane(FFVAContext *vactx, uint32_t size)
     return alloc_buffer(vactx, VABitPlaneBufferType, size, &vactx->bitplane_buf_id);
 }
 
+void *ff_vaapi_alloc_probability(FFVAContext *vactx, uint32_t size)
+{
+    return alloc_buffer(vactx, VAProbabilityBufferType, size, &vactx->probability_buf_id);
+}
+
 VASliceParameterBufferBase *ff_vaapi_alloc_slice(FFVAContext *vactx, const uint8_t *buffer, uint32_t size)
 {
     uint8_t *slice_params;
@@ -215,6 +226,7 @@ void ff_vaapi_common_end_frame(AVCodecContext *avctx)
     destroy_buffers(vactx->display, &vactx->pic_param_buf_id, 1);
     destroy_buffers(vactx->display, &vactx->iq_matrix_buf_id, 1);
     destroy_buffers(vactx->display, &vactx->bitplane_buf_id, 1);
+    destroy_buffers(vactx->display, &vactx->probability_buf_id, 1);
     destroy_buffers(vactx->display, vactx->slice_buf_ids, vactx->n_slice_buf_ids);
     av_freep(&vactx->slice_buf_ids);
     av_freep(&vactx->slice_params);

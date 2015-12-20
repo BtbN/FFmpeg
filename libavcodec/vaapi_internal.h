@@ -42,6 +42,7 @@ typedef struct {
     VABufferID pic_param_buf_id;        ///< Picture parameter buffer
     VABufferID iq_matrix_buf_id;        ///< Inverse quantiser matrix buffer
     VABufferID bitplane_buf_id;         ///< Bitplane buffer (for VC-1 decoding)
+    VABufferID probability_buf_id;      ///< Probability buffer (for VP8 decoding)
     VABufferID *slice_buf_ids;          ///< Slice parameter/data buffers
     unsigned int n_slice_buf_ids;       ///< Number of effective slice buffers
     unsigned int slice_buf_ids_alloc;   ///< Number of allocated slice buffers
@@ -82,6 +83,9 @@ void *ff_vaapi_alloc_iq_matrix(FFVAContext *vactx, unsigned int size);
 
 /** Allocate a new bit-plane buffer */
 uint8_t *ff_vaapi_alloc_bitplane(FFVAContext *vactx, uint32_t size);
+
+/** Allocate a new probability buffer */
+void *ff_vaapi_alloc_probability(FFVAContext *vactx, uint32_t size);
 
 /**
  * Allocate a new slice descriptor for the input slice.
