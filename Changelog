@@ -52,6 +52,7 @@ version <next>:
 - automatic bitstream filtering
 - showspectrumpic filter
 - libstagefright support removed
+- VAAPI VP8 hwaccel
 
 
 version 2.8:

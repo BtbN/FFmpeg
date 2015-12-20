@@ -2754,7 +2754,7 @@ static av_cold int vp8_init_frames(VP8Context *s)
 static av_always_inline
 int vp78_decode_init(AVCodecContext *avctx, int is_vp7)
 {
-#define HWACCEL_MAX (0)
+#define HWACCEL_MAX (CONFIG_VP8_VAAPI_HWACCEL)
     enum AVPixelFormat pix_fmts[HWACCEL_MAX + 2], *fmtp = pix_fmts;
     VP8Context *s = avctx->priv_data;
     int ret;
@@ -2763,6 +2763,10 @@ int vp78_decode_init(AVCodecContext *avctx, int is_vp7)
     s->vp7   = avctx->codec->id == AV_CODEC_ID_VP7;
 
     if (CONFIG_VP8_DECODER && !is_vp7) {
+#if CONFIG_VP9_VAAPI_HWACCEL
+        *fmtp++ = AV_PIX_FMT_VAAPI;
+#endif
+
         *fmtp++ = AV_PIX_FMT_YUV420P;
         *fmtp = AV_PIX_FMT_NONE;
 
