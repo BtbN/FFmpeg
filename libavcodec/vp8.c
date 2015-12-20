@@ -736,7 +736,7 @@ static int vp8_decode_frame_header(VP8Context *s, const uint8_t *buf, int buf_si
     s->filter.sharpness = vp8_rac_get_uint(c, 3);
 
     if ((s->lf_delta.enabled = vp8_rac_get(c)))
-        if (vp8_rac_get(c))
+        if ((s->lf_delta.update = vp8_rac_get(c)))
             update_lf_deltas(s);
 
     if (setup_partitions(s, buf, buf_size)) {

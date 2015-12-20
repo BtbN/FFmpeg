@@ -197,6 +197,7 @@ typedef struct VP8Context {
 
     struct {
         uint8_t enabled;    ///< whether each mb can have a different strength based on mode/ref
+        uint8_t update;
 
         /**
          * filter strength adjustment for the following macroblock modes:
