@@ -359,7 +359,7 @@ static const uint8_t vp8_dct_cat6_prob[] = {
 };
 
 // only used for cat3 and above; cat 1 and 2 are referenced directly
-const uint8_t *const ff_vp8_dct_cat_prob[] = {
+static const uint8_t *const ff_vp8_dct_cat_prob[] = {
     vp8_dct_cat3_prob,
     vp8_dct_cat4_prob,
     vp8_dct_cat5_prob,
