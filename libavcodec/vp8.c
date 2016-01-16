@@ -777,6 +777,10 @@ static int vp8_decode_frame_header(VP8Context *s, const uint8_t *buf, int buf_si
         vp78_update_pred16x16_pred8x8_mvc_probabilities(s, VP8_MVC_SIZE);
     }
 
+    s->rac_high = c->high;
+    s->rac_bits = c->bits;
+    s->rac_code_word = c->code_word;
+
     return 0;
 }
 
@@ -2626,19 +2630,6 @@ int vp78_decode_frame(AVCodecContext *avctx, void *data, int *got_frame,
 
     s->next_framep[VP56_FRAME_CURRENT] = curframe;
 
-    if (!is_vp7 && avctx->hwaccel) {
-        ret = avctx->hwaccel->start_frame(avctx, NULL, 0);
-        if (ret < 0)
-            goto err;
-        ret = avctx->hwaccel->decode_slice(avctx, avpkt->data, avpkt->size);
-        if (ret < 0)
-            goto err;
-        ret = avctx->hwaccel->end_frame(avctx);
-        if (ret < 0)
-            goto err;
-        goto finish;
-    }
-
     if (avctx->codec->update_thread_context)
         ff_thread_finish_setup(avctx);
 
@@ -2681,14 +2672,26 @@ int vp78_decode_frame(AVCodecContext *avctx, void *data, int *got_frame,
         s->thread_data[i].thread_mb_pos = 0;
         s->thread_data[i].wait_mb_pos   = INT_MAX;
     }
-    if (is_vp7)
-        avctx->execute2(avctx, vp7_decode_mb_row_sliced, s->thread_data, NULL,
-                        num_jobs);
-    else
-        avctx->execute2(avctx, vp8_decode_mb_row_sliced, s->thread_data, NULL,
-                        num_jobs);
+    if (!is_vp7 && avctx->hwaccel) {
+        ret = avctx->hwaccel->start_frame(avctx, NULL, 0);
+        if (ret < 0)
+            goto err;
+        ret = avctx->hwaccel->decode_slice(avctx, avpkt->data, avpkt->size);
+        if (ret < 0)
+            goto err;
+        ret = avctx->hwaccel->end_frame(avctx);
+        if (ret < 0)
+            goto err;
+    } else  {
+      if (is_vp7)
+          avctx->execute2(avctx, vp7_decode_mb_row_sliced, s->thread_data, NULL,
+                          num_jobs);
+      else
+          avctx->execute2(avctx, vp8_decode_mb_row_sliced, s->thread_data, NULL,
+                          num_jobs);
 
-    ff_thread_report_progress(&curframe->tf, INT_MAX, 0);
+      ff_thread_report_progress(&curframe->tf, INT_MAX, 0);
+    }
 
 finish:
     memcpy(&s->framep[0], &s->next_framep[0], sizeof(s->framep[0]) * 4);

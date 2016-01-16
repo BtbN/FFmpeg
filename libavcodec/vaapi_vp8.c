@@ -20,6 +20,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#include <limits.h>
+#include <stddef.h>
 #include "libavutil/pixdesc.h"
 #include "vaapi_internal.h"
 #include "vp8.h"
@@ -34,19 +36,19 @@ static void fill_picture_parameters(AVCodecContext              *avctx,
     pp->frame_width = avctx->width;
     pp->frame_height = avctx->height;
 
-    if (h->framep[VP56_FRAME_PREVIOUS]->tf.f->buf[0]) {
+    if (h->framep[VP56_FRAME_PREVIOUS] && h->framep[VP56_FRAME_PREVIOUS]->tf.f->buf[0]) {
         pp->last_ref_frame = ff_vaapi_get_surface_id(h->framep[VP56_FRAME_PREVIOUS]->tf.f);
     } else {
         pp->last_ref_frame = VA_INVALID_ID;
     }
 
-    if (h->framep[VP56_FRAME_GOLDEN]->tf.f->buf[0]) {
+    if (h->framep[VP56_FRAME_GOLDEN] && h->framep[VP56_FRAME_GOLDEN]->tf.f->buf[0]) {
         pp->golden_ref_frame = ff_vaapi_get_surface_id(h->framep[VP56_FRAME_GOLDEN]->tf.f);
     } else {
         pp->golden_ref_frame = VA_INVALID_ID;
     }
 
-    if (h->framep[VP56_FRAME_GOLDEN2]->tf.f->buf[0]) {
+    if (h->framep[VP56_FRAME_GOLDEN2] && h->framep[VP56_FRAME_GOLDEN2]->tf.f->buf[0]) {
         pp->alt_ref_frame = ff_vaapi_get_surface_id(h->framep[VP56_FRAME_GOLDEN2]->tf.f);
     } else {
         pp->alt_ref_frame = VA_INVALID_ID;
@@ -92,9 +94,18 @@ static void fill_picture_parameters(AVCodecContext              *avctx,
         for (j = 0; j < 19; j++)
             pp->mv_probs[i][j] = h->prob->mvc[i][j];
 
-    pp->bool_coder_ctx.range;
-    pp->bool_coder_ctx.value;
-    pp->bool_coder_ctx.count;
+    /*
+     * Let the stupidity begin
+     */
+
+    pp->bool_coder_ctx.range = h->rac_high;
+    pp->bool_coder_ctx.value = (uint8_t) ((h->rac_code_word) >> 16);
+    pp->bool_coder_ctx.count = (8 - h->rac_bits) % 8;
+
+    av_log(avctx, AV_LOG_INFO, "rac_high: %x, rac_code_word: %x, rac_bits: %d\n",
+           h->rac_high, h->rac_code_word, (int)h->rac_bits);
+    av_log(avctx, AV_LOG_INFO, "range: %x, value: %x, count: %x\n",
+           pp->bool_coder_ctx.range, pp->bool_coder_ctx.value, pp->bool_coder_ctx.count);
 }
 
 static int vaapi_vp8_start_frame(AVCodecContext          *avctx,

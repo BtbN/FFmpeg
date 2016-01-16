@@ -305,6 +305,13 @@ typedef struct VP8Context {
     uint8_t feature_present_prob[4];
     uint8_t feature_index_prob[4][3];
     uint8_t feature_value[4][4];
+
+    /**
+     * Still range decoder values preserved after header decoding
+     */
+    int rac_high;
+    int rac_bits;
+    unsigned int rac_code_word;
 } VP8Context;
 
 int ff_vp8_decode_init(AVCodecContext *avctx);
