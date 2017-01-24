@@ -202,6 +202,10 @@ fail:
     return ret;
 }
 
+#if !HAVE_THREADS
+#define ff_thread_get_packet(avctx, pkt) (AVERROR_BUG)
+#endif
+
 int ff_decode_get_packet(AVCodecContext *avctx, AVPacket *pkt)
 {
     AVCodecInternal *avci = avctx->internal;
@@ -210,7 +214,14 @@ int ff_decode_get_packet(AVCodecContext *avctx, AVPacket *pkt)
     if (avci->draining)
         return AVERROR_EOF;
 
-    ret = av_bsf_receive_packet(avci->bsf, pkt);
+    /* If we are a worker thread, get the next packet from the threading
+     * context. Otherwise we are the main (user-facing) context, so we get the
+     * next packet from the input filterchain.
+     */
+    if (avctx->internal->is_frame_mt)
+        ret = ff_thread_get_packet(avctx, pkt);
+    else
+        ret = av_bsf_receive_packet(avci->bsf, pkt);
     if (ret == AVERROR_EOF)
         avci->draining = 1;
     if (ret < 0)
@@ -295,15 +306,11 @@ static inline int decode_simple_internal(AVCodecContext *avctx, AVFrame *frame, 
         return AVERROR_EOF;
 
     if (!pkt->data &&
-        !(avctx->codec->capabilities & AV_CODEC_CAP_DELAY ||
-          avctx->active_thread_type & FF_THREAD_FRAME))
+        !(avctx->codec->capabilities & AV_CODEC_CAP_DELAY))
         return AVERROR_EOF;
 
     got_frame = 0;
 
-    if (HAVE_THREADS && avctx->active_thread_type & FF_THREAD_FRAME) {
-        ret = ff_thread_decode_frame(avctx, frame, &got_frame, pkt);
-    } else {
         ret = codec->cb.decode(avctx, frame, &got_frame, pkt);
 
         if (!(codec->caps_internal & FF_CODEC_CAP_SETS_PKT_DTS))
@@ -320,7 +327,6 @@ static inline int decode_simple_internal(AVCodecContext *avctx, AVFrame *frame, 
                 if (frame->format == AV_PIX_FMT_NONE) frame->format              = avctx->pix_fmt;
             }
         }
-    }
     emms_c();
     actual_got_frame = got_frame;
 
@@ -520,7 +526,7 @@ static int decode_simple_receive_frame(AVCodecContext *avctx, AVFrame *frame)
     return 0;
 }
 
-static int decode_receive_frame_internal(AVCodecContext *avctx, AVFrame *frame)
+int ff_decode_receive_frame(AVCodecContext *avctx, AVFrame *frame)
 {
     AVCodecInternal *avci = avctx->internal;
     const FFCodec *const codec = ffcodec(avctx->codec);
@@ -577,6 +583,13 @@ FF_ENABLE_DEPRECATION_WARNINGS
     av_buffer_unref(&frame->private_ref);
 
     return ret;
+}
+
+static int decode_receive_frame_internal(AVCodecContext *avctx, AVFrame *frame)
+{
+    if (avctx->active_thread_type & FF_THREAD_FRAME)
+        return ff_thread_receive_frame(avctx, frame);
+    return ff_decode_receive_frame(avctx, frame);
 }
 
 int attribute_align_arg avcodec_send_packet(AVCodecContext *avctx, const AVPacket *avpkt)

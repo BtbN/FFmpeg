@@ -53,6 +53,13 @@ typedef struct AVCodecInternal {
     int is_copy;
 
     /**
+     * This field is set to 1 when frame threading is being used and the parent
+     * AVCodecContext of this AVCodecInternal is a worker-thread context (i.e.
+     * one of those actually doing the decoding), 0 otherwise.
+     */
+    int is_frame_mt;
+
+    /**
      * An audio frame with less than required samples has been submitted and
      * padded with silence. Reject all subsequent frames.
      */

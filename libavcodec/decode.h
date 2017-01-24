@@ -94,4 +94,11 @@ int ff_copy_palette(void *dst, const AVPacket *src, void *logctx);
  */
 int ff_decode_preinit(AVCodecContext *avctx);
 
+/**
+ * Do the actual decoding and obtain a decoded frame from the decoder, if
+ * available. When frame threading is used, this is invoked by the worker
+ * threads, otherwise by the top layer directly.
+ */
+int ff_decode_receive_frame(AVCodecContext *avctx, AVFrame *frame);
+
 #endif /* AVCODEC_DECODE_H */
