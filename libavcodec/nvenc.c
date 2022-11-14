@@ -60,6 +60,7 @@ const enum AVPixelFormat ff_nvenc_pix_fmts[] = {
     AV_PIX_FMT_YUV444P,
     AV_PIX_FMT_P016,      // Truncated to 10bits
     AV_PIX_FMT_YUV444P16, // Truncated to 10bits
+    AV_PIX_FMT_VUYA,
     AV_PIX_FMT_0RGB32,
     AV_PIX_FMT_RGB32,
     AV_PIX_FMT_0BGR32,
@@ -103,6 +104,7 @@ const AVCodecHWConfigInternal *const ff_nvenc_hw_configs[] = {
                             pix_fmt == AV_PIX_FMT_YUV444P16 || \
                             pix_fmt == AV_PIX_FMT_GBRP      || \
                             pix_fmt == AV_PIX_FMT_GBRP16    || \
+                            (!ctx->use_alpha && pix_fmt == AV_PIX_FMT_VUYA) || \
                             (ctx->rgb_mode == NVENC_RGB_MODE_444 && IS_RGB(pix_fmt)))
 
 #define IS_GBRP(pix_fmt) (pix_fmt == AV_PIX_FMT_GBRP || \
@@ -634,6 +636,29 @@ static int nvenc_check_capabilities(AVCodecContext *avctx)
 #endif
 
     ctx->support_dyn_bitrate = nvenc_check_cap(avctx, NV_ENC_CAPS_SUPPORT_DYN_BITRATE_CHANGE);
+
+    if (ctx->use_alpha) {
+#ifdef NVENC_HAVE_ALPHA_SUPPORT
+        ret = nvenc_check_cap(avctx, NV_ENC_CAPS_SUPPORT_ALPHA_LAYER_ENCODING);
+#else
+        ret = 0;
+#endif
+        if (!ret) {
+            av_log(avctx, AV_LOG_WARNING, "Alpha layer encoding not supported by the device\n");
+            return AVERROR(ENOSYS);
+        }
+
+        if (ctx->data_pix_fmt != AV_PIX_FMT_RGB32 && ctx->data_pix_fmt != AV_PIX_FMT_BGR32 &&
+            ctx->data_pix_fmt != AV_PIX_FMT_VUYA) {
+            av_log(avctx, AV_LOG_WARNING, "Alpha channel encoding is only supported for 8 bit ARGB/BGRA/VUYA formats\n");
+            return AVERROR(EINVAL);
+        }
+
+        if (ctx->weighted_pred) {
+            av_log(avctx, AV_LOG_WARNING, "Alpha channel encoding is not supported with weighted prediction\n");
+            return AVERROR(EINVAL);
+        }
+    }
 
     return 0;
 }
@@ -1201,6 +1226,11 @@ static av_cold int nvenc_setup_rate_control(AVCodecContext *avctx)
         ctx->encode_config.rcParams.maxBitRate = avctx->rc_max_rate;
     }
 
+#ifdef NVENC_HAVE_ALPHA_SUPPORT
+    if (ctx->alpha_ratio > 0)
+        ctx->encode_config.rcParams.alphaLayerBitrateRatio = ctx->alpha_ratio;
+#endif
+
     return 0;
 }
 
@@ -1474,6 +1504,11 @@ static av_cold int nvenc_setup_hevc_config(AVCodecContext *avctx)
         if (ctx->encode_config.frameIntervalP < 5)
             av_log(avctx, AV_LOG_WARNING, "Temporal filtering needs at least 4 B-Frames (-bf 4).\n");
     }
+#endif
+
+#ifdef NVENC_HAVE_ALPHA_SUPPORT
+    if (ctx->use_alpha)
+        hevc->enableAlphaLayerEncoding = 1;
 #endif
 
     return 0;
@@ -1811,6 +1846,8 @@ static NV_ENC_BUFFER_FORMAT nvenc_map_buffer_format(enum AVPixelFormat pix_fmt)
     case AV_PIX_FMT_GBRP16:
     case AV_PIX_FMT_YUV444P16:
         return NV_ENC_BUFFER_FORMAT_YUV444_10BIT;
+    case AV_PIX_FMT_VUYA:
+        return NV_ENC_BUFFER_FORMAT_AYUV;
     case AV_PIX_FMT_0RGB32:
     case AV_PIX_FMT_RGB32:
         return NV_ENC_BUFFER_FORMAT_ARGB;
