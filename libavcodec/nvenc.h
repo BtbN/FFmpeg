@@ -73,6 +73,11 @@ typedef void ID3D11Device;
 #define NVENC_HAVE_HEVC_CONSTRAINED_ENCODING
 #endif
 
+// SDK 11.0 compile time feature checks
+#if NVENCAPI_CHECK_VERSION(11, 0)
+#define NVENC_HAVE_ALPHA_SUPPORT
+#endif
+
 // SDK 11.1 compile time feature checks
 #if NVENCAPI_CHECK_VERSION(11, 1)
 #define NVENC_HAVE_QP_CHROMA_OFFSETS
@@ -311,6 +316,8 @@ typedef struct NvencContext
     int split_encode_mode;
     int mdm, cll;
     int cbr_padding;
+    int use_alpha;
+    int alpha_ratio;
 } NvencContext;
 
 int ff_nvenc_encode_init(AVCodecContext *avctx);

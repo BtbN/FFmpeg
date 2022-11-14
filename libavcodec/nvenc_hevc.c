@@ -236,6 +236,10 @@ static const AVOption options[] = {
     { "2",                 "Enabled with number of horizontal strips forced to 2 when number of NVENCs > 1", 0, AV_OPT_TYPE_CONST, { .i64 = NV_ENC_SPLIT_TWO_FORCED_MODE },   0, 0, VE, .unit = "split_encode_mode" },
     { "3",                 "Enabled with number of horizontal strips forced to 3 when number of NVENCs > 2", 0, AV_OPT_TYPE_CONST, { .i64 = NV_ENC_SPLIT_THREE_FORCED_MODE }, 0, 0, VE, .unit = "split_encode_mode" },
 #endif
+    { "alpha",        "Enable encoding of alpha layer (ARGB/BGRA/VUYA input only)",
+                                                            OFFSET(use_alpha),    AV_OPT_TYPE_BOOL,  { .i64 = 0 }, 0, 1, VE },
+    { "alpha_ratio",  "Bitrate allocation ratio, n:1 between base and alpha layer",
+                                                            OFFSET(alpha_ratio),  AV_OPT_TYPE_INT,   { .i64 = 0 }, 0, INT_MAX, VE },
     { NULL }
 };
 
