@@ -580,6 +580,28 @@ static int nvenc_check_capabilities(AVCodecContext *avctx)
 
     ctx->support_dyn_bitrate = nvenc_check_cap(avctx, NV_ENC_CAPS_SUPPORT_DYN_BITRATE_CHANGE);
 
+    if (ctx->use_alpha) {
+#ifdef NVENC_HAVE_ALPHA_SUPPORT
+        ret = nvenc_check_cap(avctx, NV_ENC_CAPS_SUPPORT_ALPHA_LAYER_ENCODING);
+#else
+        ret = 0;
+#endif
+        if (!ret) {
+            av_log(avctx, AV_LOG_WARNING, "Alpha layer encoding not supported by the device\n");
+            return AVERROR(ENOSYS);
+        }
+
+        if (ctx->data_pix_fmt != AV_PIX_FMT_RGB32 && ctx->data_pix_fmt != AV_PIX_FMT_BGR32) {
+            av_log(avctx, AV_LOG_WARNING, "Alpha channel encoding is only supported for 8 bit ARGB/BGRA formats\n");
+            return AVERROR(EINVAL);
+        }
+
+        if (ctx->weighted_pred) {
+            av_log(avctx, AV_LOG_WARNING, "Alpha channel encoding is not supported with weighted prediction\n");
+            return AVERROR(EINVAL);
+        }
+    }
+
     return 0;
 }
 
@@ -1114,6 +1136,11 @@ static av_cold void nvenc_setup_rate_control(AVCodecContext *avctx)
         ctx->encode_config.rcParams.averageBitRate = avctx->bit_rate = 0;
         ctx->encode_config.rcParams.maxBitRate = avctx->rc_max_rate;
     }
+
+#ifdef NVENC_HAVE_ALPHA_SUPPORT
+    if (ctx->alpha_ratio > 0)
+        ctx->encode_config.rcParams.alphaLayerBitrateRatio = ctx->alpha_ratio;
+#endif
 }
 
 static av_cold int nvenc_setup_h264_config(AVCodecContext *avctx)
@@ -1349,6 +1376,11 @@ static av_cold int nvenc_setup_hevc_config(AVCodecContext *avctx)
 #ifdef NVENC_HAVE_MULTIPLE_REF_FRAMES
     hevc->numRefL0 = avctx->refs;
     hevc->numRefL1 = avctx->refs;
+#endif
+
+#ifdef NVENC_HAVE_ALPHA_SUPPORT
+    if (ctx->use_alpha)
+        hevc->enableAlphaLayerEncoding = 1;
 #endif
 
     return 0;

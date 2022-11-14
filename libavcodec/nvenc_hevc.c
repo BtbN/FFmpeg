@@ -177,6 +177,10 @@ static const AVOption options[] = {
                                                             OFFSET(single_slice_intra_refresh), AV_OPT_TYPE_BOOL, { .i64 = 0 }, 0, 1, VE },
     { "constrained-encoding", "Enable constrainedFrame encoding where each slice in the constrained picture is independent of other slices",
                                                             OFFSET(constrained_encoding), AV_OPT_TYPE_BOOL, { .i64 = 0 }, 0, 1, VE },
+    { "alpha",        "Enable encoding of alpha layer (ARGB/BGRA input only)",
+                                                            OFFSET(use_alpha),    AV_OPT_TYPE_BOOL,  { .i64 = 0 }, 0, 1, VE },
+    { "alpha_ratio",  "Bitrate allocation ratio, n:1 between base and alpha layer",
+                                                            OFFSET(alpha_ratio),  AV_OPT_TYPE_INT,   { .i64 = 0 }, 0, INT_MAX, VE },
     { NULL }
 };
 
