@@ -103,7 +103,7 @@ const FFCodec ff_sp5x_decoder = {
     .init           = ff_mjpeg_decode_init,
     .close          = ff_mjpeg_decode_end,
     FF_CODEC_DECODE_CB(sp5x_decode_frame),
-    .p.capabilities = AV_CODEC_CAP_DR1,
+    .p.capabilities = AV_CODEC_CAP_DR1 | AV_CODEC_CAP_FRAME_THREADS,
     .p.max_lowres   = 3,
     .caps_internal  = FF_CODEC_CAP_INIT_CLEANUP,
 };
@@ -119,7 +119,7 @@ const FFCodec ff_amv_decoder = {
     .close          = ff_mjpeg_decode_end,
     FF_CODEC_DECODE_CB(sp5x_decode_frame),
     .p.max_lowres   = 3,
-    .p.capabilities = AV_CODEC_CAP_DR1,
+    .p.capabilities = AV_CODEC_CAP_DR1 | AV_CODEC_CAP_FRAME_THREADS,
     .caps_internal  = FF_CODEC_CAP_INIT_CLEANUP,
 };
 #endif

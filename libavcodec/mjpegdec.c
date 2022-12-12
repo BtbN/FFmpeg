@@ -54,6 +54,7 @@
 #include "exif.h"
 #include "bytestream.h"
 #include "tiff_common.h"
+#include "thread.h"
 
 
 static int init_default_huffman_tables(MJpegDecodeContext *s)
@@ -735,7 +736,7 @@ int ff_mjpeg_decode_sof(MJpegDecodeContext *s)
                 s->avctx->pix_fmt,
                 AV_PIX_FMT_NONE,
             };
-            s->hwaccel_pix_fmt = ff_get_format(s->avctx, pix_fmts);
+            s->hwaccel_pix_fmt = ff_thread_get_format(s->avctx, pix_fmts);
             if (s->hwaccel_pix_fmt < 0)
                 return AVERROR(EINVAL);
 
@@ -751,7 +752,7 @@ int ff_mjpeg_decode_sof(MJpegDecodeContext *s)
         }
 
         av_frame_unref(s->picture_ptr);
-        if (ff_get_buffer(s->avctx, s->picture_ptr, AV_GET_BUFFER_FLAG_REF) < 0)
+        if (ff_thread_get_buffer(s->avctx, s->picture_ptr, AV_GET_BUFFER_FLAG_REF) < 0)
             return -1;
         s->picture_ptr->pict_type = AV_PICTURE_TYPE_I;
         s->picture_ptr->flags |= AV_FRAME_FLAG_KEY;
@@ -3003,7 +3004,7 @@ const FFCodec ff_mjpeg_decoder = {
     .close          = ff_mjpeg_decode_end,
     FF_CODEC_DECODE_CB(ff_mjpeg_decode_frame),
     .flush          = decode_flush,
-    .p.capabilities = AV_CODEC_CAP_DR1,
+    .p.capabilities = AV_CODEC_CAP_DR1 | AV_CODEC_CAP_FRAME_THREADS,
     .p.max_lowres   = 3,
     .p.priv_class   = &mjpegdec_class,
     .p.profiles     = NULL_IF_CONFIG_SMALL(ff_mjpeg_profiles),
@@ -3032,7 +3033,7 @@ const FFCodec ff_thp_decoder = {
     .close          = ff_mjpeg_decode_end,
     FF_CODEC_DECODE_CB(ff_mjpeg_decode_frame),
     .flush          = decode_flush,
-    .p.capabilities = AV_CODEC_CAP_DR1,
+    .p.capabilities = AV_CODEC_CAP_DR1 | AV_CODEC_CAP_FRAME_THREADS,
     .p.max_lowres   = 3,
     .caps_internal  = FF_CODEC_CAP_INIT_CLEANUP,
 };
@@ -3108,7 +3109,7 @@ const FFCodec ff_smvjpeg_decoder = {
     .close          = ff_mjpeg_decode_end,
     FF_CODEC_RECEIVE_FRAME_CB(smvjpeg_receive_frame),
     .flush          = decode_flush,
-    .p.capabilities = AV_CODEC_CAP_DR1,
+    .p.capabilities = AV_CODEC_CAP_DR1 | AV_CODEC_CAP_FRAME_THREADS,
     .caps_internal  = FF_CODEC_CAP_EXPORTS_CROPPING |
                       FF_CODEC_CAP_SETS_PKT_DTS | FF_CODEC_CAP_INIT_CLEANUP,
 };
