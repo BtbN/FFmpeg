@@ -34,6 +34,13 @@ struct AVFrame;
 int ff_decode_receive_frame(struct AVCodecContext *avctx, struct AVFrame *frame);
 
 /**
+ * Do the actual decoding and obtain a decoded frame from the decoder, if
+ * available. When frame threading is used, this is invoked by the worker
+ * threads, otherwise by the top layer directly.
+ */
+int ff_decode_receive_frame_internal(AVCodecContext *avctx, AVFrame *frame);
+
+/**
  * avcodec_receive_frame() implementation for encoders.
  */
 int ff_encode_receive_frame(struct AVCodecContext *avctx, struct AVFrame *frame);
