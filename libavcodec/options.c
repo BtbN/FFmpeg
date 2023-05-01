@@ -142,8 +142,10 @@ FF_ENABLE_DEPRECATION_WARNINGS
         int ret;
         const FFCodecDefault *d = codec2->defaults;
         while (d->key) {
-            ret = av_opt_set(s, d->key, d->value, 0);
-            av_assert0(ret >= 0);
+            if (d->value) {
+                ret = av_opt_set(s, d->key, d->value, 0);
+                av_assert0(ret >= 0);
+            }
             d++;
         }
     }
@@ -212,4 +214,42 @@ static const AVClass av_subtitle_rect_class = {
 const AVClass *avcodec_get_subtitle_rect_class(void)
 {
     return &av_subtitle_rect_class;
+}
+
+AVCodecGlobalOption *avcodec_get_global_options(const AVCodec *codec)
+{
+    const AVClass *search_class = &av_codec_context_class;
+    const FFCodec *const codec2 = ffcodec(codec);
+    const FFCodecDefault *d;
+
+    AVCodecGlobalOption *ret;
+    int i;
+
+    av_assert0(codec2);
+
+    d = codec2->defaults;
+    i = 0;
+    while (d && d->key) {
+        i++;
+        d++;
+    }
+
+    ret = av_malloc(sizeof(*ret) * (i + 1));
+    if (!ret)
+        return NULL;
+
+    d = codec2->defaults;
+    i = 0;
+    while (d && d->key) {
+        ret[i].option = av_opt_find(&search_class, d->key, NULL, 0, AV_OPT_SEARCH_FAKE_OBJ);
+        ret[i].default_value = d->value;
+
+        i++;
+        d++;
+    }
+
+    ret[i].option = NULL;
+    ret[i].default_value = NULL;
+
+    return ret;
 }

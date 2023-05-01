@@ -36,6 +36,7 @@
 #include "libavutil/log.h"
 #include "libavutil/pixfmt.h"
 #include "libavutil/rational.h"
+#include "libavutil/opt.h"
 
 #include "codec.h"
 #include "codec_desc.h"
@@ -2390,6 +2391,11 @@ typedef struct AVSubtitle {
     int64_t pts;    ///< Same as packet pts, in AV_TIME_BASE
 } AVSubtitle;
 
+typedef struct AVCodecGlobalOption {
+    const AVOption *option;
+    const char *default_value;
+} AVCodecGlobalOption;
+
 /**
  * Return the LIBAVCODEC_VERSION_INT constant.
  */
@@ -2404,6 +2410,17 @@ const char *avcodec_configuration(void);
  * Return the libavcodec license.
  */
 const char *avcodec_license(void);
+
+/**
+ * Return a list of global options a codec makes use of, together with their
+ * codec-specific default value, if any.
+ *
+ * @param codec The codec to fetch the list of global default options for.
+ *
+ * @return a NULL-Terminated(option == NULL) array of AVCodecGlobalOption,
+ *         caller needs to free this with av_free.
+ */
+AVCodecGlobalOption *avcodec_get_global_options(const AVCodec *codec);
 
 /**
  * Allocate an AVCodecContext and set its fields to default values. The
