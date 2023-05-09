@@ -144,6 +144,8 @@ static const AVOption options[] = {
                                                             OFFSET(extra_sei),    AV_OPT_TYPE_BOOL,  { .i64 = 1 }, 0, 1, VE },
     { "a53cc",        "Use A53 Closed Captions (if available)", OFFSET(a53_cc),   AV_OPT_TYPE_BOOL,  { .i64 = 1 }, 0, 1, VE },
     { "s12m_tc",      "Use timecode (if available)",        OFFSET(s12m_tc),      AV_OPT_TYPE_BOOL,  { .i64 = 1 }, 0, 1, VE },
+    { "private_stream", "Create a private, internal CUstream instance and use it for all encode operations",
+                                                            OFFSET(private_stream), AV_OPT_TYPE_BOOL,  { .i64 = -1 }, 0, 1, VE },
     { NULL }
 };
 

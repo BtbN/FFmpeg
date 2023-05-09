@@ -760,10 +760,14 @@ static av_cold int nvenc_setup_device(AVCodecContext *avctx)
 
         av_log(avctx, AV_LOG_VERBOSE, "%d CUDA capable devices found\n", nb_devices);
 
+        /* We are creating our own context anyway, move it off the default stream by default. */
+        if (ctx->private_stream < 0)
+            ctx->private_stream = 1;
+
         dl_fn->nvenc_device_count = 0;
         for (i = 0; i < nb_devices; ++i) {
             if ((nvenc_check_device(avctx, i)) >= 0 && ctx->device != LIST_DEVICES)
-                return 0;
+                goto success;
         }
 
         if (ctx->device == LIST_DEVICES)
@@ -776,6 +780,14 @@ static av_cold int nvenc_setup_device(AVCodecContext *avctx)
 
         av_log(avctx, AV_LOG_FATAL, "Requested GPU %d, but only %d GPUs are available!\n", ctx->device, nb_devices);
         return AVERROR(EINVAL);
+    }
+
+success:
+    if (ctx->cu_context && ctx->private_stream > 0) {
+        if (CHECK_CU(dl_fn->cuda_dl->cuStreamCreate(&ctx->cu_stream, 1 /* CU_STREAM_NON_BLOCKING */)) < 0) {
+            av_log(avctx, AV_LOG_ERROR, "Failed creating internal CUDA stream.\n");
+            return AVERROR_UNKNOWN;
+        }
     }
 
     return 0;
@@ -1895,6 +1907,10 @@ av_cold int ff_nvenc_encode_close(AVCodecContext *avctx)
             return res;
     }
     ctx->nvencoder = NULL;
+
+    if (ctx->cu_context && ctx->private_stream > 0)
+        CHECK_CU(dl_fn->cuda_dl->cuStreamDestroy(ctx->cu_stream));
+    ctx->cu_stream = NULL;
 
     if (ctx->cu_context_internal)
         CHECK_CU(dl_fn->cuda_dl->cuCtxDestroy(ctx->cu_context_internal));

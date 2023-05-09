@@ -208,6 +208,8 @@ static const AVOption options[] = {
                                                             OFFSET(single_slice_intra_refresh), AV_OPT_TYPE_BOOL, { .i64 = 0 }, 0, 1, VE },
     { "constrained-encoding", "Enable constrainedFrame encoding where each slice in the constrained picture is independent of other slices",
                                                             OFFSET(constrained_encoding), AV_OPT_TYPE_BOOL,  { .i64 = 0 }, 0, 1, VE },
+    { "private_stream", "Create a private, internal CUstream instance and use it for all encode operations",
+                                                            OFFSET(private_stream), AV_OPT_TYPE_BOOL,  { .i64 = -1 }, 0, 1, VE },
     { NULL }
 };
 
