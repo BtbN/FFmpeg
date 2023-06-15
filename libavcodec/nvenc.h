@@ -178,6 +178,9 @@ typedef struct NvencContext
     AVFifo *output_surface_ready_queue;
     AVFifo *reorder_queue;
 
+    int64_t dts_offset;
+    int64_t last_dts;
+
     NV_ENC_SEI_PAYLOAD *sei_data;
     int sei_data_size;
 

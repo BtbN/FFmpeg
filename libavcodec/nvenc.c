@@ -1943,6 +1943,9 @@ av_cold int ff_nvenc_encode_init(AVCodecContext *avctx)
     NvencContext *ctx = avctx->priv_data;
     int ret;
 
+    ctx->last_dts = AV_NOPTS_VALUE;
+    ctx->dts_offset = 1;
+
     if (avctx->pix_fmt == AV_PIX_FMT_CUDA || avctx->pix_fmt == AV_PIX_FMT_D3D11) {
         AVHWFramesContext *frames_ctx;
         if (!avctx->hw_frames_ctx) {
@@ -2271,6 +2274,17 @@ FF_ENABLE_DEPRECATION_WARNINGS
     return fd.pts;
 }
 
+static int64_t reorder_queue_peek(AVFifo *queue)
+{
+    FrameData fd;
+
+    // The following call might fail if the queue is empty.
+    if (av_fifo_peek(queue, &fd, 1, 0) < 0)
+        return AV_NOPTS_VALUE;
+
+    return fd.pts;
+}
+
 static int nvenc_set_timestamp(AVCodecContext *avctx,
                                NV_ENC_LOCK_BITSTREAM *params,
                                AVPacket *pkt)
@@ -2283,13 +2297,20 @@ static int nvenc_set_timestamp(AVCodecContext *avctx,
     dts = reorder_queue_dequeue(ctx->reorder_queue, avctx, pkt);
 
     if (avctx->codec_descriptor->props & AV_CODEC_PROP_REORDER) {
-FF_DISABLE_DEPRECATION_WARNINGS
-        pkt->dts = dts -
-#if FF_API_TICKS_PER_FRAME
-            FFMAX(avctx->ticks_per_frame, 1) *
-#endif
-            FFMAX(ctx->encode_config.frameIntervalP - 1, 0);
-FF_ENABLE_DEPRECATION_WARNINGS
+        int64_t next_dts = reorder_queue_peek(ctx->reorder_queue);
+
+        if (next_dts != AV_NOPTS_VALUE && dts != AV_NOPTS_VALUE)
+            ctx->dts_offset = FFMAX(ctx->dts_offset, next_dts - dts);
+
+        pkt->dts = dts - FFMAX(ctx->encode_config.frameIntervalP - 1, 0) * ctx->dts_offset;
+
+        if (pkt->dts <= ctx->last_dts && ctx->last_dts != AV_NOPTS_VALUE) {
+            av_log(avctx, AV_LOG_INFO, "Correcting dts value. "
+                                       "This is harmless if it occurs only at the start of the stream.\n");
+            pkt->dts = ctx->last_dts + 1;
+        }
+
+        ctx->last_dts = pkt->dts;
     } else {
         pkt->dts = pkt->pts;
     }
