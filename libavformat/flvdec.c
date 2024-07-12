@@ -340,6 +340,8 @@ static int flv_same_video_codec(AVCodecParameters *vpar, uint32_t flv_codecid)
         return vpar->codec_id == AV_CODEC_ID_AV1;
     case MKBETAG('v', 'p', '0', '9'):
         return vpar->codec_id == AV_CODEC_ID_VP9;
+    case MKBETAG('v', 'p', '0', '8'):
+        return vpar->codec_id == AV_CODEC_ID_VP8;
     case FLV_CODECID_H263:
         return vpar->codec_id == AV_CODEC_ID_FLV1;
     case FLV_CODECID_SCREEN:
@@ -376,6 +378,10 @@ static int flv_set_video_codec(AVFormatContext *s, AVStream *vstream,
         break;
     case MKBETAG('v', 'p', '0', '9'):
         par->codec_id = AV_CODEC_ID_VP9;
+        vstreami->need_parsing = AVSTREAM_PARSE_HEADERS;
+        break;
+    case MKBETAG('v', 'p', '0', '8'):
+        par->codec_id = AV_CODEC_ID_VP8;
         vstreami->need_parsing = AVSTREAM_PARSE_HEADERS;
         break;
     case FLV_CODECID_H263:
@@ -1443,7 +1449,8 @@ retry_duration:
         st->codecpar->codec_id == AV_CODEC_ID_MPEG4 ||
         st->codecpar->codec_id == AV_CODEC_ID_HEVC ||
         st->codecpar->codec_id == AV_CODEC_ID_AV1 ||
-        st->codecpar->codec_id == AV_CODEC_ID_VP9) {
+        st->codecpar->codec_id == AV_CODEC_ID_VP9 ||
+        st->codecpar->codec_id == AV_CODEC_ID_VP8) {
         int type = 0;
         if (enhanced_flv && stream_type == FLV_STREAM_TYPE_VIDEO) {
             type = flags & 0x0F;
@@ -1481,7 +1488,8 @@ retry_duration:
         }
         if (type == 0 && (!st->codecpar->extradata || st->codecpar->codec_id == AV_CODEC_ID_AAC ||
             st->codecpar->codec_id == AV_CODEC_ID_H264 || st->codecpar->codec_id == AV_CODEC_ID_HEVC ||
-            st->codecpar->codec_id == AV_CODEC_ID_AV1 || st->codecpar->codec_id == AV_CODEC_ID_VP9)) {
+            st->codecpar->codec_id == AV_CODEC_ID_AV1 || st->codecpar->codec_id == AV_CODEC_ID_VP9 ||
+            st->codecpar->codec_id == AV_CODEC_ID_VP8)) {
             AVDictionaryEntry *t;
 
             if (st->codecpar->extradata) {
