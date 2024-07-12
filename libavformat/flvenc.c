@@ -56,6 +56,7 @@ static const AVCodecTag flv_video_codec_ids[] = {
     { AV_CODEC_ID_AV1,      MKBETAG('a', 'v', '0', '1') },
     { AV_CODEC_ID_VP8,      MKBETAG('v', 'p', '0', '8') },
     { AV_CODEC_ID_VP9,      MKBETAG('v', 'p', '0', '9') },
+    { AV_CODEC_ID_VP8,      MKBETAG('v', 'p', '0', '8') },
     { AV_CODEC_ID_NONE,     0 }
 };
 
@@ -527,6 +528,9 @@ static void write_codec_fourcc(AVIOContext *pb, enum AVCodecID codec_id)
     case AV_CODEC_ID_VP9:
         avio_write(pb, "vp09", 4);
         return;
+    case AV_CODEC_ID_VP8:
+        avio_write(pb, "vp08", 4);
+        return;
     default:
         av_log(NULL, AV_LOG_ERROR, "Invalid codec FourCC write requested.\n");
         av_assert0(0);
@@ -824,8 +828,9 @@ static void flv_write_codec_header(AVFormatContext* s, AVCodecParameters* par, i
     if (par->codec_id == AV_CODEC_ID_AAC || par->codec_id == AV_CODEC_ID_H264
             || par->codec_id == AV_CODEC_ID_MPEG4 || par->codec_id == AV_CODEC_ID_HEVC
             || par->codec_id == AV_CODEC_ID_AV1 || par->codec_id == AV_CODEC_ID_VP9
-            || par->codec_id == AV_CODEC_ID_OPUS || par->codec_id == AV_CODEC_ID_FLAC
-            || par->codec_id == AV_CODEC_ID_AC3 || par->codec_id == AV_CODEC_ID_EAC3) {
+            || par->codec_id == AV_CODEC_ID_VP8 || par->codec_id == AV_CODEC_ID_OPUS
+            || par->codec_id == AV_CODEC_ID_FLAC || par->codec_id == AV_CODEC_ID_AC3
+            || par->codec_id == AV_CODEC_ID_EAC3) {
         int64_t pos;
         avio_w8(pb,
                 par->codec_type == AVMEDIA_TYPE_VIDEO ?
@@ -869,11 +874,10 @@ static void flv_write_codec_header(AVFormatContext* s, AVCodecParameters* par, i
             }
         } else {
             // If video stream has track_idx > 0 we need to send H.264 as extended video packet
-            int extended_flv = (par->codec_id == AV_CODEC_ID_H264 && track_idx)
-                                    || par->codec_id == AV_CODEC_ID_HEVC
-                                    || par->codec_id == AV_CODEC_ID_AV1
-                                    || par->codec_id == AV_CODEC_ID_VP9
-                                    || par->codec_id == AV_CODEC_ID_VP8;
+            extended_flv = (par->codec_id == AV_CODEC_ID_H264 && track_idx)
+                                || par->codec_id == AV_CODEC_ID_HEVC
+                                || par->codec_id == AV_CODEC_ID_AV1
+                                || par->codec_id == AV_CODEC_ID_VP9;
 
             if (extended_flv) {
                 if (track_idx) {
@@ -1246,7 +1250,7 @@ static int flv_write_packet(AVFormatContext *s, AVPacket *pkt)
     if (par->codec_id == AV_CODEC_ID_AAC || par->codec_id == AV_CODEC_ID_H264
             || par->codec_id == AV_CODEC_ID_MPEG4 || par->codec_id == AV_CODEC_ID_HEVC
             || par->codec_id == AV_CODEC_ID_AV1 || par->codec_id == AV_CODEC_ID_VP9
-            || par->codec_id == AV_CODEC_ID_VP8) {
+            || par->codec_id == AV_CODEC_ID_OPUS || par->codec_id == AV_CODEC_ID_FLAC) {
         size_t side_size;
         uint8_t *side = av_packet_get_side_data(pkt, AV_PKT_DATA_NEW_EXTRADATA, &side_size);
         if (side && side_size > 0 && (side_size != par->extradata_size || memcmp(side, par->extradata, side_size))) {

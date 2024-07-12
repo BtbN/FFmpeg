@@ -534,7 +534,7 @@ static int parse_keyframes_index(AVFormatContext *s, AVIOContext *ioc, int64_t m
         if (arraylen>>28)
             break;
 
-        if       (!strcmp(KEYFRAMES_TIMESTAMP_TAG , str_val) && !times) {
+        if (!strcmp(KEYFRAMES_TIMESTAMP_TAG , str_val) && !times) {
             current_array = &times;
             timeslen      = arraylen;
             factor = 1000;
@@ -1453,34 +1453,34 @@ skip:
             size -= 3;
         }
 
-        /* now find stream */
-        for (i = 0; i < s->nb_streams; i++) {
-            st = s->streams[i];
-            if (stream_type == FLV_STREAM_TYPE_AUDIO) {
-                if (st->codecpar->codec_type == AVMEDIA_TYPE_AUDIO &&
-                    (s->audio_codec_id || flv_same_audio_codec(st->codecpar, flags, codec_id)) &&
-                    st->id == track_idx)
-                    break;
-            } else if (stream_type == FLV_STREAM_TYPE_VIDEO) {
-                if (st->codecpar->codec_type == AVMEDIA_TYPE_VIDEO &&
-                    (s->video_codec_id || flv_same_video_codec(st->codecpar, codec_id)) &&
-                    st->id == track_idx)
-                    break;
-            } else if (stream_type == FLV_STREAM_TYPE_SUBTITLE) {
-                if (st->codecpar->codec_type == AVMEDIA_TYPE_SUBTITLE)
-                    break;
-            } else if (stream_type == FLV_STREAM_TYPE_DATA) {
-                if (st->codecpar->codec_type == AVMEDIA_TYPE_DATA)
-                    break;
-            }
+    /* now find stream */
+    for (i = 0; i < s->nb_streams; i++) {
+        st = s->streams[i];
+        if (stream_type == FLV_STREAM_TYPE_AUDIO) {
+            if (st->codecpar->codec_type == AVMEDIA_TYPE_AUDIO &&
+                (s->audio_codec_id || flv_same_audio_codec(st->codecpar, flags, codec_id)) &&
+                st->id == track_idx)
+                break;
+        } else if (stream_type == FLV_STREAM_TYPE_VIDEO) {
+            if (st->codecpar->codec_type == AVMEDIA_TYPE_VIDEO &&
+                (s->video_codec_id || flv_same_video_codec(st->codecpar, codec_id)) &&
+                st->id == track_idx)
+                break;
+        } else if (stream_type == FLV_STREAM_TYPE_SUBTITLE) {
+            if (st->codecpar->codec_type == AVMEDIA_TYPE_SUBTITLE)
+                break;
+        } else if (stream_type == FLV_STREAM_TYPE_DATA) {
+            if (st->codecpar->codec_type == AVMEDIA_TYPE_DATA)
+                break;
         }
-        if (i == s->nb_streams) {
-            static const enum AVMediaType stream_types[] = {AVMEDIA_TYPE_VIDEO, AVMEDIA_TYPE_AUDIO, AVMEDIA_TYPE_SUBTITLE, AVMEDIA_TYPE_DATA};
-            st = create_stream(s, stream_types[stream_type], track_idx);
-            if (!st)
-                return AVERROR(ENOMEM);
-        }
-        av_log(s, AV_LOG_TRACE, "%d %X %d \n", stream_type, flags, st->discard);
+    }
+    if (i == s->nb_streams) {
+        static const enum AVMediaType stream_types[] = {AVMEDIA_TYPE_VIDEO, AVMEDIA_TYPE_AUDIO, AVMEDIA_TYPE_SUBTITLE, AVMEDIA_TYPE_DATA};
+        st = create_stream(s, stream_types[stream_type], track_idx);
+        if (!st)
+            return AVERROR(ENOMEM);
+    }
+    av_log(s, AV_LOG_TRACE, "%d %X %d \n", stream_type, flags, st->discard);
 
         if (flv->time_pos <= pos) {
             dts += flv->time_offset;
@@ -1629,57 +1629,57 @@ retry_duration:
             st->codecpar->codec_id = AV_CODEC_ID_NONE; // Opaque AMF data
         }
 
-    if (st->codecpar->codec_id == AV_CODEC_ID_AAC ||
-        st->codecpar->codec_id == AV_CODEC_ID_OPUS ||
-        st->codecpar->codec_id == AV_CODEC_ID_FLAC ||
-        st->codecpar->codec_id == AV_CODEC_ID_H264 ||
-        st->codecpar->codec_id == AV_CODEC_ID_MPEG4 ||
-        st->codecpar->codec_id == AV_CODEC_ID_HEVC ||
-        st->codecpar->codec_id == AV_CODEC_ID_AV1 ||
-        st->codecpar->codec_id == AV_CODEC_ID_VP9 ||
-        st->codecpar->codec_id == AV_CODEC_ID_VP8) {
-        int type = 0;
-        if (enhanced_flv) {
-            type = pkt_type;
-        } else {
-            type = avio_r8(s->pb);
-            size--;
+        if (st->codecpar->codec_id == AV_CODEC_ID_AAC ||
+            st->codecpar->codec_id == AV_CODEC_ID_OPUS ||
+            st->codecpar->codec_id == AV_CODEC_ID_FLAC ||
+            st->codecpar->codec_id == AV_CODEC_ID_H264 ||
+            st->codecpar->codec_id == AV_CODEC_ID_MPEG4 ||
+            st->codecpar->codec_id == AV_CODEC_ID_HEVC ||
+            st->codecpar->codec_id == AV_CODEC_ID_AV1 ||
+            st->codecpar->codec_id == AV_CODEC_ID_VP9) {
+            int type = 0;
+            if (enhanced_flv) {
+                type = pkt_type;
+            } else {
+                type = avio_r8(s->pb);
+                size--;
+                track_size--;
+            }
+
+        if (size < 0 || track_size < 0) {
+            ret = AVERROR_INVALIDDATA;
+            goto leave;
         }
 
-            if (size < 0 || track_size < 0) {
-                ret = AVERROR_INVALIDDATA;
-                goto leave;
-            }
+        if (enhanced_flv && stream_type == FLV_STREAM_TYPE_VIDEO && flv->meta_color_info_flag) {
+            flv_update_video_color_info(s, st); // update av packet side data
+            flv->meta_color_info_flag = 0;
+        }
 
-            if (enhanced_flv && stream_type == FLV_STREAM_TYPE_VIDEO && flv->meta_color_info_flag) {
-                flv_update_video_color_info(s, st); // update av packet side data
-                flv->meta_color_info_flag = 0;
-            }
-
-        if (st->codecpar->codec_id == AV_CODEC_ID_MPEG4 ||
-            (st->codecpar->codec_id == AV_CODEC_ID_H264 && (!enhanced_flv || type == PacketTypeCodedFrames)) ||
-            (st->codecpar->codec_id == AV_CODEC_ID_HEVC && type == PacketTypeCodedFrames)) {
-            // sign extension
-            int32_t cts = (avio_rb24(s->pb) + 0xff800000) ^ 0xff800000;
-            pts = av_sat_add64(dts, cts);
-            if (cts < 0) { // dts might be wrong
-                if (!flv->wrong_dts)
+            if (st->codecpar->codec_id == AV_CODEC_ID_MPEG4 ||
+                (st->codecpar->codec_id == AV_CODEC_ID_H264 && (!enhanced_flv || type == PacketTypeCodedFrames)) ||
+                (st->codecpar->codec_id == AV_CODEC_ID_HEVC && type == PacketTypeCodedFrames)) {
+                // sign extension
+                int32_t cts = (avio_rb24(s->pb) + 0xff800000) ^ 0xff800000;
+                pts = av_sat_add64(dts, cts);
+                if (cts < 0) { // dts might be wrong
+                    if (!flv->wrong_dts)
+                        av_log(s, AV_LOG_WARNING,
+                            "Negative cts, previous timestamps might be wrong.\n");
+                    flv->wrong_dts = 1;
+                } else if (FFABS(dts - pts) > 1000*60*15) {
                     av_log(s, AV_LOG_WARNING,
-                        "Negative cts, previous timestamps might be wrong.\n");
-                flv->wrong_dts = 1;
-            } else if (FFABS(dts - pts) > 1000*60*15) {
-                av_log(s, AV_LOG_WARNING,
-                       "invalid timestamps %"PRId64" %"PRId64"\n", dts, pts);
-                dts = pts = AV_NOPTS_VALUE;
+                           "invalid timestamps %"PRId64" %"PRId64"\n", dts, pts);
+                    dts = pts = AV_NOPTS_VALUE;
+                }
+                size -= 3;
+                track_size -= 3;
             }
-            size -= 3;
-        }
-        if (type == 0 && (!st->codecpar->extradata || st->codecpar->codec_id == AV_CODEC_ID_AAC ||
-            st->codecpar->codec_id == AV_CODEC_ID_OPUS || st->codecpar->codec_id == AV_CODEC_ID_FLAC ||
-            st->codecpar->codec_id == AV_CODEC_ID_H264 || st->codecpar->codec_id == AV_CODEC_ID_HEVC ||
-            st->codecpar->codec_id == AV_CODEC_ID_AV1 || st->codecpar->codec_id == AV_CODEC_ID_VP9 ||
-            st->codecpar->codec_id == AV_CODEC_ID_VP8)) {
-            AVDictionaryEntry *t;
+            if (type == 0 && (!st->codecpar->extradata || st->codecpar->codec_id == AV_CODEC_ID_AAC ||
+                st->codecpar->codec_id == AV_CODEC_ID_OPUS || st->codecpar->codec_id == AV_CODEC_ID_FLAC ||
+                st->codecpar->codec_id == AV_CODEC_ID_H264 || st->codecpar->codec_id == AV_CODEC_ID_HEVC ||
+                st->codecpar->codec_id == AV_CODEC_ID_AV1 || st->codecpar->codec_id == AV_CODEC_ID_VP9)) {
+                AVDictionaryEntry *t;
 
                 if (st->codecpar->extradata) {
                     if ((ret = flv_queue_extradata(flv, s->pb, multitrack ? track_idx : stream_type, track_size, multitrack)) < 0)
