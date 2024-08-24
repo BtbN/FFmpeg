@@ -54,7 +54,9 @@ static const AVCodecTag flv_video_codec_ids[] = {
     { AV_CODEC_ID_H264,     FLV_CODECID_H264 },
     { AV_CODEC_ID_HEVC,     MKBETAG('h', 'v', 'c', '1') },
     { AV_CODEC_ID_AV1,      MKBETAG('a', 'v', '0', '1') },
+    { AV_CODEC_ID_VP8,      MKBETAG('v', 'p', '0', '8') },
     { AV_CODEC_ID_VP9,      MKBETAG('v', 'p', '0', '9') },
+    { AV_CODEC_ID_VP8,      MKBETAG('v', 'p', '0', '8') },
     { AV_CODEC_ID_NONE,     0 }
 };
 
@@ -526,6 +528,9 @@ static void write_codec_fourcc(AVIOContext *pb, enum AVCodecID codec_id)
     case AV_CODEC_ID_VP9:
         avio_write(pb, "vp09", 4);
         return;
+    case AV_CODEC_ID_VP8:
+        avio_write(pb, "vp08", 4);
+        return;
     default:
         av_log(NULL, AV_LOG_ERROR, "Invalid codec FourCC write requested.\n");
         av_assert0(0);
@@ -546,7 +551,7 @@ static void flv_write_metadata_packet(AVFormatContext *s, AVCodecParameters *par
         return;
 
     if (par->codec_id == AV_CODEC_ID_HEVC || par->codec_id == AV_CODEC_ID_AV1 ||
-        par->codec_id == AV_CODEC_ID_VP9) {
+        par->codec_id == AV_CODEC_ID_VP8 || par->codec_id == AV_CODEC_ID_VP9) {
         int flags_size = 5;
         side_data = av_packet_side_data_get(par->coded_side_data, par->nb_coded_side_data,
                                             AV_PKT_DATA_CONTENT_LIGHT_LEVEL);
@@ -807,8 +812,9 @@ static void flv_write_codec_header(AVFormatContext* s, AVCodecParameters* par, i
     if (par->codec_id == AV_CODEC_ID_AAC || par->codec_id == AV_CODEC_ID_H264
             || par->codec_id == AV_CODEC_ID_MPEG4 || par->codec_id == AV_CODEC_ID_HEVC
             || par->codec_id == AV_CODEC_ID_AV1 || par->codec_id == AV_CODEC_ID_VP9
-            || par->codec_id == AV_CODEC_ID_OPUS || par->codec_id == AV_CODEC_ID_FLAC
-            || par->codec_id == AV_CODEC_ID_AC3 || par->codec_id == AV_CODEC_ID_EAC3) {
+            || par->codec_id == AV_CODEC_ID_VP8 || par->codec_id == AV_CODEC_ID_OPUS
+            || par->codec_id == AV_CODEC_ID_FLAC || par->codec_id == AV_CODEC_ID_AC3
+            || par->codec_id == AV_CODEC_ID_EAC3) {
         int64_t pos;
         avio_w8(pb,
                 par->codec_type == AVMEDIA_TYPE_VIDEO ?
@@ -817,6 +823,7 @@ static void flv_write_codec_header(AVFormatContext* s, AVCodecParameters* par, i
         put_timestamp(pb, ts);
         avio_wb24(pb, 0); // streamid
         pos = avio_tell(pb);
+
         if (par->codec_type == AVMEDIA_TYPE_AUDIO) {
             extended_flv = (par->codec_id == AV_CODEC_ID_AAC && track_idx)
                                     || (par->codec_id == AV_CODEC_ID_MP3 && track_idx)
@@ -855,7 +862,8 @@ static void flv_write_codec_header(AVFormatContext* s, AVCodecParameters* par, i
             extended_flv = (par->codec_id == AV_CODEC_ID_H264 && track_idx)
                                 || par->codec_id == AV_CODEC_ID_HEVC
                                 || par->codec_id == AV_CODEC_ID_AV1
-                                || par->codec_id == AV_CODEC_ID_VP9;
+                                || par->codec_id == AV_CODEC_ID_VP9
+                                || par->codec_id == AV_CODEC_ID_VP8;
 
             if (extended_flv) {
                 if (track_idx) {
@@ -874,12 +882,11 @@ static void flv_write_codec_header(AVFormatContext* s, AVCodecParameters* par, i
                 avio_w8(pb, 0); // AVC sequence header
                 avio_wb24(pb, 0); // composition time
             }
-
             if (par->codec_id == AV_CODEC_ID_HEVC)
                 ff_isom_write_hvcc(pb, par->extradata, par->extradata_size, 0);
             else if (par->codec_id == AV_CODEC_ID_AV1)
                 ff_isom_write_av1c(pb, par->extradata, par->extradata_size, 1);
-            else if (par->codec_id == AV_CODEC_ID_VP9)
+            else if (par->codec_id == AV_CODEC_ID_VP9 || par->codec_id == AV_CODEC_ID_VP8)
                 ff_isom_write_vpcc(s, pb, par->extradata, par->extradata_size, par);
             else
                 ff_isom_write_avcc(pb, par->extradata, par->extradata_size);
@@ -1206,7 +1213,7 @@ static int flv_write_packet(AVFormatContext *s, AVPacket *pkt)
         flags_size = 2;
     else if (par->codec_id == AV_CODEC_ID_H264 || par->codec_id == AV_CODEC_ID_MPEG4 ||
              par->codec_id == AV_CODEC_ID_HEVC || par->codec_id == AV_CODEC_ID_AV1 ||
-             par->codec_id == AV_CODEC_ID_VP9)
+             par->codec_id == AV_CODEC_ID_VP9 || par->codec_id == AV_CODEC_ID_VP8)
         flags_size = 5;
     else
         flags_size = 1;
@@ -1222,7 +1229,8 @@ static int flv_write_packet(AVFormatContext *s, AVPacket *pkt)
     if (par->codec_id == AV_CODEC_ID_AAC || par->codec_id == AV_CODEC_ID_H264
             || par->codec_id == AV_CODEC_ID_MPEG4 || par->codec_id == AV_CODEC_ID_HEVC
             || par->codec_id == AV_CODEC_ID_AV1 || par->codec_id == AV_CODEC_ID_VP9
-            || par->codec_id == AV_CODEC_ID_OPUS || par->codec_id == AV_CODEC_ID_FLAC) {
+            || par->codec_id == AV_CODEC_ID_VP8 || par->codec_id == AV_CODEC_ID_OPUS
+            || par->codec_id == AV_CODEC_ID_FLAC) {
         size_t side_size;
         uint8_t *side = av_packet_get_side_data(pkt, AV_PKT_DATA_NEW_EXTRADATA, &side_size);
         if (side && side_size > 0 && (side_size != par->extradata_size || memcmp(side, par->extradata, side_size))) {
@@ -1245,7 +1253,7 @@ static int flv_write_packet(AVFormatContext *s, AVPacket *pkt)
     }
     if (par->codec_id == AV_CODEC_ID_H264 || par->codec_id == AV_CODEC_ID_MPEG4 ||
         par->codec_id == AV_CODEC_ID_HEVC ||  par->codec_id == AV_CODEC_ID_AV1 ||
-        par->codec_id == AV_CODEC_ID_VP9) {
+        par->codec_id == AV_CODEC_ID_VP9 || par->codec_id == AV_CODEC_ID_VP8) {
         if (pkt->pts == AV_NOPTS_VALUE) {
             av_log(s, AV_LOG_ERROR, "Packet is missing PTS\n");
             return AVERROR(EINVAL);
@@ -1355,7 +1363,8 @@ static int flv_write_packet(AVFormatContext *s, AVPacket *pkt)
         int extended_video = (par->codec_id == AV_CODEC_ID_H264 && track_idx)
                                 || par->codec_id == AV_CODEC_ID_HEVC
                                 || par->codec_id == AV_CODEC_ID_AV1
-                                || par->codec_id == AV_CODEC_ID_VP9;
+                                || par->codec_id == AV_CODEC_ID_VP9
+                                || par->codec_id == AV_CODEC_ID_VP8;
 
         if (extended_video) {
             int h2645 = par->codec_id == AV_CODEC_ID_H264 ||

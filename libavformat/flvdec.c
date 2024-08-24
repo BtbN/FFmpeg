@@ -386,6 +386,8 @@ static int flv_same_video_codec(AVCodecParameters *vpar, uint32_t flv_codecid)
         return vpar->codec_id == AV_CODEC_ID_AV1;
     case MKBETAG('v', 'p', '0', '9'):
         return vpar->codec_id == AV_CODEC_ID_VP9;
+    case MKBETAG('v', 'p', '0', '8'):
+        return vpar->codec_id == AV_CODEC_ID_VP8;
     case FLV_CODECID_H263:
         return vpar->codec_id == AV_CODEC_ID_FLV1;
     case FLV_CODECID_SCREEN:
@@ -423,6 +425,10 @@ static int flv_set_video_codec(AVFormatContext *s, AVStream *vstream,
         break;
     case MKBETAG('v', 'p', '0', '9'):
         par->codec_id = AV_CODEC_ID_VP9;
+        vstreami->need_parsing = AVSTREAM_PARSE_HEADERS;
+        break;
+    case MKBETAG('v', 'p', '0', '8'):
+        par->codec_id = AV_CODEC_ID_VP8;
         vstreami->need_parsing = AVSTREAM_PARSE_HEADERS;
         break;
     case FLV_CODECID_H263:
@@ -528,7 +534,7 @@ static int parse_keyframes_index(AVFormatContext *s, AVIOContext *ioc, int64_t m
         if (arraylen>>28)
             break;
 
-        if       (!strcmp(KEYFRAMES_TIMESTAMP_TAG , str_val) && !times) {
+        if (!strcmp(KEYFRAMES_TIMESTAMP_TAG , str_val) && !times) {
             current_array = &times;
             timeslen      = arraylen;
             factor = 1000;
