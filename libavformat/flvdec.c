@@ -1453,34 +1453,34 @@ skip:
             size -= 3;
         }
 
-    /* now find stream */
-    for (i = 0; i < s->nb_streams; i++) {
-        st = s->streams[i];
-        if (stream_type == FLV_STREAM_TYPE_AUDIO) {
-            if (st->codecpar->codec_type == AVMEDIA_TYPE_AUDIO &&
-                (s->audio_codec_id || flv_same_audio_codec(st->codecpar, flags, codec_id)) &&
-                st->id == track_idx)
-                break;
-        } else if (stream_type == FLV_STREAM_TYPE_VIDEO) {
-            if (st->codecpar->codec_type == AVMEDIA_TYPE_VIDEO &&
-                (s->video_codec_id || flv_same_video_codec(st->codecpar, codec_id)) &&
-                st->id == track_idx)
-                break;
-        } else if (stream_type == FLV_STREAM_TYPE_SUBTITLE) {
-            if (st->codecpar->codec_type == AVMEDIA_TYPE_SUBTITLE)
-                break;
-        } else if (stream_type == FLV_STREAM_TYPE_DATA) {
-            if (st->codecpar->codec_type == AVMEDIA_TYPE_DATA)
-                break;
+        /* now find stream */
+        for (i = 0; i < s->nb_streams; i++) {
+            st = s->streams[i];
+            if (stream_type == FLV_STREAM_TYPE_AUDIO) {
+                if (st->codecpar->codec_type == AVMEDIA_TYPE_AUDIO &&
+                    (s->audio_codec_id || flv_same_audio_codec(st->codecpar, flags, codec_id)) &&
+                    st->id == track_idx)
+                    break;
+            } else if (stream_type == FLV_STREAM_TYPE_VIDEO) {
+                if (st->codecpar->codec_type == AVMEDIA_TYPE_VIDEO &&
+                    (s->video_codec_id || flv_same_video_codec(st->codecpar, codec_id)) &&
+                    st->id == track_idx)
+                    break;
+            } else if (stream_type == FLV_STREAM_TYPE_SUBTITLE) {
+                if (st->codecpar->codec_type == AVMEDIA_TYPE_SUBTITLE)
+                    break;
+            } else if (stream_type == FLV_STREAM_TYPE_DATA) {
+                if (st->codecpar->codec_type == AVMEDIA_TYPE_DATA)
+                    break;
+            }
         }
-    }
-    if (i == s->nb_streams) {
-        static const enum AVMediaType stream_types[] = {AVMEDIA_TYPE_VIDEO, AVMEDIA_TYPE_AUDIO, AVMEDIA_TYPE_SUBTITLE, AVMEDIA_TYPE_DATA};
-        st = create_stream(s, stream_types[stream_type], track_idx);
-        if (!st)
-            return AVERROR(ENOMEM);
-    }
-    av_log(s, AV_LOG_TRACE, "%d %X %d \n", stream_type, flags, st->discard);
+        if (i == s->nb_streams) {
+            static const enum AVMediaType stream_types[] = {AVMEDIA_TYPE_VIDEO, AVMEDIA_TYPE_AUDIO, AVMEDIA_TYPE_SUBTITLE, AVMEDIA_TYPE_DATA};
+            st = create_stream(s, stream_types[stream_type], track_idx);
+            if (!st)
+                return AVERROR(ENOMEM);
+        }
+        av_log(s, AV_LOG_TRACE, "%d %X %d \n", stream_type, flags, st->discard);
 
         if (flv->time_pos <= pos) {
             dts += flv->time_offset;
@@ -1646,15 +1646,15 @@ retry_duration:
                 track_size--;
             }
 
-        if (size < 0 || track_size < 0) {
-            ret = AVERROR_INVALIDDATA;
-            goto leave;
-        }
+            if (size < 0 || track_size < 0) {
+                ret = AVERROR_INVALIDDATA;
+                goto leave;
+            }
 
-        if (enhanced_flv && stream_type == FLV_STREAM_TYPE_VIDEO && flv->meta_color_info_flag) {
-            flv_update_video_color_info(s, st); // update av packet side data
-            flv->meta_color_info_flag = 0;
-        }
+            if (enhanced_flv && stream_type == FLV_STREAM_TYPE_VIDEO && flv->meta_color_info_flag) {
+                flv_update_video_color_info(s, st); // update av packet side data
+                flv->meta_color_info_flag = 0;
+            }
 
             if (st->codecpar->codec_id == AV_CODEC_ID_MPEG4 ||
                 (st->codecpar->codec_id == AV_CODEC_ID_H264 && (!enhanced_flv || type == PacketTypeCodedFrames)) ||

@@ -686,22 +686,6 @@ static void flv_write_aac_header(AVFormatContext* s, AVCodecParameters* par)
     AVIOContext *pb = s->pb;
     FLVContext *flv = s->priv_data;
 
-    if (par->codec_id == AV_CODEC_ID_AAC || par->codec_id == AV_CODEC_ID_H264
-            || par->codec_id == AV_CODEC_ID_MPEG4 || par->codec_id == AV_CODEC_ID_HEVC
-            || par->codec_id == AV_CODEC_ID_AV1 || par->codec_id == AV_CODEC_ID_VP9
-            || par->codec_id == AV_CODEC_ID_VP8) {
-        int64_t pos;
-        avio_w8(pb,
-                par->codec_type == AVMEDIA_TYPE_VIDEO ?
-                        FLV_TAG_TYPE_VIDEO : FLV_TAG_TYPE_AUDIO);
-        avio_wb24(pb, 0); // size patched later
-        put_timestamp(pb, ts);
-        avio_wb24(pb, 0); // streamid
-        pos = avio_tell(pb);
-        if (par->codec_id == AV_CODEC_ID_AAC) {
-            avio_w8(pb, get_audio_flags(s, par));
-            avio_w8(pb, 0); // AAC sequence header
-
     if (!par->extradata_size && (flv->flags & FLV_AAC_SEQ_HEADER_DETECT)) {
         PutBitContext pbc;
         int samplerate_index;
@@ -839,6 +823,7 @@ static void flv_write_codec_header(AVFormatContext* s, AVCodecParameters* par, i
         put_timestamp(pb, ts);
         avio_wb24(pb, 0); // streamid
         pos = avio_tell(pb);
+
         if (par->codec_type == AVMEDIA_TYPE_AUDIO) {
             extended_flv = (par->codec_id == AV_CODEC_ID_AAC && track_idx)
                                     || (par->codec_id == AV_CODEC_ID_MP3 && track_idx)
@@ -877,7 +862,8 @@ static void flv_write_codec_header(AVFormatContext* s, AVCodecParameters* par, i
             extended_flv = (par->codec_id == AV_CODEC_ID_H264 && track_idx)
                                 || par->codec_id == AV_CODEC_ID_HEVC
                                 || par->codec_id == AV_CODEC_ID_AV1
-                                || par->codec_id == AV_CODEC_ID_VP9;
+                                || par->codec_id == AV_CODEC_ID_VP9
+                                || par->codec_id == AV_CODEC_ID_VP8;
 
             if (extended_flv) {
                 if (track_idx) {
@@ -887,14 +873,7 @@ static void flv_write_codec_header(AVFormatContext* s, AVCodecParameters* par, i
                     avio_w8(pb, FLV_IS_EX_HEADER | PacketTypeSequenceStart | FLV_FRAME_KEY);
                 }
 
-                if (par->codec_id == AV_CODEC_ID_H264)
-                    avio_write(pb, "avc1", 4);
-                else if (par->codec_id == AV_CODEC_ID_HEVC)
-                    avio_write(pb, "hvc1", 4);
-                else if (par->codec_id == AV_CODEC_ID_AV1)
-                    avio_write(pb, "av01", 4);
-                else if (par->codec_id == AV_CODEC_ID_VP9)
-                    avio_write(pb, "vp09", 4);
+                write_codec_fourcc(pb, par->codec_id);
 
                 if (track_idx)
                     avio_w8(pb, track_idx);
@@ -1250,7 +1229,8 @@ static int flv_write_packet(AVFormatContext *s, AVPacket *pkt)
     if (par->codec_id == AV_CODEC_ID_AAC || par->codec_id == AV_CODEC_ID_H264
             || par->codec_id == AV_CODEC_ID_MPEG4 || par->codec_id == AV_CODEC_ID_HEVC
             || par->codec_id == AV_CODEC_ID_AV1 || par->codec_id == AV_CODEC_ID_VP9
-            || par->codec_id == AV_CODEC_ID_OPUS || par->codec_id == AV_CODEC_ID_FLAC) {
+            || par->codec_id == AV_CODEC_ID_VP8 || par->codec_id == AV_CODEC_ID_OPUS
+            || par->codec_id == AV_CODEC_ID_FLAC) {
         size_t side_size;
         uint8_t *side = av_packet_get_side_data(pkt, AV_PKT_DATA_NEW_EXTRADATA, &side_size);
         if (side && side_size > 0 && (side_size != par->extradata_size || memcmp(side, par->extradata, side_size))) {
@@ -1401,14 +1381,7 @@ static int flv_write_packet(AVFormatContext *s, AVPacket *pkt)
                 avio_w8(pb, FLV_IS_EX_HEADER | pkttype | frametype);
             }
 
-            if (par->codec_id == AV_CODEC_ID_H264)
-                avio_write(pb, "avc1", 4);
-            else if (par->codec_id == AV_CODEC_ID_HEVC)
-                avio_write(pb, "hvc1", 4);
-            else if (par->codec_id == AV_CODEC_ID_AV1)
-                avio_write(pb, "av01", 4);
-            else if (par->codec_id == AV_CODEC_ID_VP9)
-                avio_write(pb, "vp09", 4);
+            write_codec_fourcc(pb, par->codec_id);
 
             if (track_idx)
                 avio_w8(pb, track_idx);
