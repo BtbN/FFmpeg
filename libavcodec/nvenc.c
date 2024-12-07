@@ -1420,7 +1420,7 @@ static av_cold int nvenc_setup_hevc_config(AVCodecContext *avctx)
         hevc->enableConstrainedEncoding = 1;
 #endif
 
-    hevc->disableSPSPPS = (avctx->flags & AV_CODEC_FLAG_GLOBAL_HEADER) ? 1 : 0;
+    hevc->disableSPSPPS = (avctx->flags & AV_CODEC_FLAG_GLOBAL_HEADER) ? 0 : 0;
     hevc->repeatSPSPPS  = (avctx->flags & AV_CODEC_FLAG_GLOBAL_HEADER) ? 0 : 1;
     hevc->outputAUD     = ctx->aud;
 
@@ -2128,7 +2128,7 @@ av_cold int ff_nvenc_encode_init(AVCodecContext *avctx)
     if ((ret = nvenc_setup_surfaces(avctx)) < 0)
         return ret;
 
-    if (avctx->flags & AV_CODEC_FLAG_GLOBAL_HEADER) {
+    if (avctx->codec->id != AV_CODEC_ID_HEVC && (avctx->flags & AV_CODEC_FLAG_GLOBAL_HEADER)) {
         if ((ret = nvenc_setup_extradata(avctx)) < 0)
             return ret;
     }
