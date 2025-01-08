@@ -112,6 +112,7 @@ typedef void ID3D11Device;
 #define NVENC_HAVE_AV1_UHQ_TUNING
 #define NVENC_HAVE_H264_AND_AV1_TEMPORAL_FILTER
 #define NVENC_HAVE_HEVC_AND_AV1_MASTERING_METADATA
+#define NVENC_HAVE_MVHEVC
 #endif
 
 typedef struct NvencSurface
@@ -185,6 +186,11 @@ enum {
     NV_ENC_HEVC_PROFILE_MAIN,
     NV_ENC_HEVC_PROFILE_MAIN_10,
     NV_ENC_HEVC_PROFILE_REXT,
+#ifdef NVENC_HAVE_MVHEVC
+    NV_ENC_HEVC_PROFILE_MULTIVIEW_MAIN,
+#endif
+
+    NV_ENC_HEVC_PROFILE_COUNT
 };
 
 enum {
@@ -258,6 +264,7 @@ typedef struct NvencContext
     void *nvencoder;
 
     uint32_t frame_idx_counter;
+    uint32_t next_view_id;
 
     int preset;
     int profile;
@@ -318,6 +325,8 @@ typedef struct NvencContext
     int cbr_padding;
     int use_alpha;
     int alpha_ratio;
+    int multiview, multiview_supported;
+    int display_sei_sent;
 } NvencContext;
 
 int ff_nvenc_encode_init(AVCodecContext *avctx);
