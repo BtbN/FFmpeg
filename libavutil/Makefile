@@ -197,6 +197,8 @@ OBJS = adler32.o                                                        \
        video_enc_params.o                                               \
        video_hint.o                                                     \
 
+STLIBOBJS = timecode_internal.o                                         \
+
 
 OBJS-$(CONFIG_CUDA)                     += hwcontext_cuda.o
 OBJS-$(CONFIG_D3D11VA)                  += hwcontext_d3d11va.o
