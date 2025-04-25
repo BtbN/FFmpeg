@@ -195,13 +195,9 @@ static int cuda_get_buffer(AVHWFramesContext *ctx, AVFrame *frame)
     if (res < 0)
         return res;
 
-    // YUV420P is a special case.
-    // Nvenc expects the U/V planes in swapped order from how ffmpeg expects them, also chroma is half-aligned
-    if (ctx->sw_format == AV_PIX_FMT_YUV420P) {
+    // YUV420P is a special case, chroma is half-aligned
+    if (ctx->sw_format == AV_PIX_FMT_YUV420P)
         frame->linesize[1] = frame->linesize[2] = frame->linesize[0] / 2;
-        frame->data[2]     = frame->data[1];
-        frame->data[1]     = frame->data[2] + frame->linesize[2] * (ctx->height / 2);
-    }
 
     frame->format = AV_PIX_FMT_CUDA;
     frame->width  = ctx->width;

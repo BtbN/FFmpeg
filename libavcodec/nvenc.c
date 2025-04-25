@@ -1932,7 +1932,7 @@ static NV_ENC_BUFFER_FORMAT nvenc_map_buffer_format(enum AVPixelFormat pix_fmt)
 {
     switch (pix_fmt) {
     case AV_PIX_FMT_YUV420P:
-        return NV_ENC_BUFFER_FORMAT_YV12;
+        return NV_ENC_BUFFER_FORMAT_IYUV;
     case AV_PIX_FMT_NV12:
         return NV_ENC_BUFFER_FORMAT_NV12;
     case AV_PIX_FMT_P010:
@@ -2269,9 +2269,6 @@ static int nvenc_copy_frame(AVCodecContext *avctx, NvencSurface *nv_surface,
                                  lock_buffer_params->bufferDataPtr, dst_linesize);
     if (ret < 0)
         return ret;
-
-    if (frame->format == AV_PIX_FMT_YUV420P)
-        FFSWAP(uint8_t*, dst_data[1], dst_data[2]);
 
     av_image_copy2(dst_data, dst_linesize,
                    frame->data, frame->linesize, frame->format,
