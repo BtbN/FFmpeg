@@ -985,6 +985,9 @@ static int dtls_start(URLContext *h, const char *url, int flags, AVDictionary **
             av_log(p, AV_LOG_ERROR, "Failed to connect %s\n", url);
             return ret;
         }
+        /* Make the socket non-blocking, set to READ and WRITE mode after connected */
+        ff_socket_nonblock(ffurl_get_file_handle(p->tls_shared.udp), 1);
+        p->tls_shared.udp->flags |= AVIO_FLAG_READ | AVIO_FLAG_NONBLOCK;
     }
 
     /* Setup DTLS as passive, which is server role. */
