@@ -107,7 +107,7 @@ typedef struct UDPContext {
     pthread_cond_t cond;
     int thread_started;
 #endif
-    uint8_t tmp[UDP_MAX_PKT_SIZE+4];
+    uint8_t tmp[UDP_MAX_PKT_SIZE + 4 + sizeof(struct sockaddr_storage)];
     int remaining_in_dg;
     char *localaddr;
     int timeout;
@@ -115,6 +115,7 @@ typedef struct UDPContext {
     char *sources;
     char *block;
     IPSourceFilters filters;
+    struct sockaddr_storage last_recv_addr;
 } UDPContext;
 
 #define OFFSET(x) offsetof(UDPContext, x)
@@ -467,6 +468,12 @@ int ff_udp_get_local_port(URLContext *h)
     return s->local_port;
 }
 
+void ff_udp_get_last_recv_addr(URLContext *h, struct sockaddr_storage *addr)
+{
+    UDPContext *s = h->priv_data;
+    *addr = s->last_recv_addr;
+}
+
 /**
  * Return the udp file handle for select() usage to wait for several RTP
  * streams at the same time.
@@ -498,13 +505,14 @@ static void *circular_buffer_task_rx( void *_URLContext)
         int len;
         struct sockaddr_storage addr;
         socklen_t addr_len = sizeof(addr);
+        const int header_sz = 4 + addr_len;
 
         pthread_mutex_unlock(&s->mutex);
         /* Blocking operations are always cancellation points;
            see "General Information" / "Thread Cancelation Overview"
            in Single Unix. */
         pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &old_cancelstate);
-        len = recvfrom(s->udp_fd, s->tmp+4, sizeof(s->tmp)-4, 0, (struct sockaddr *)&addr, &addr_len);
+        len = recvfrom(s->udp_fd, s->tmp + header_sz, sizeof(s->tmp) - header_sz, 0, (struct sockaddr *)&addr, &addr_len);
         pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &old_cancelstate);
         pthread_mutex_lock(&s->mutex);
         if (len < 0) {
@@ -517,8 +525,9 @@ static void *circular_buffer_task_rx( void *_URLContext)
         if (ff_ip_check_source_lists(&addr, &s->filters))
             continue;
         AV_WL32(s->tmp, len);
+        memcpy(s->tmp + 4, &addr, sizeof(addr));
 
-        if (av_fifo_can_write(s->fifo) < len + 4) {
+        if (av_fifo_can_write(s->fifo) < len + header_sz) {
             /* No Space left */
             if (s->overrun_nonfatal) {
                 av_log(h, AV_LOG_WARNING, "Circular buffer overrun. "
@@ -532,7 +541,7 @@ static void *circular_buffer_task_rx( void *_URLContext)
                 goto end;
             }
         }
-        av_fifo_write(s->fifo, s->tmp, len + 4);
+        av_fifo_write(s->fifo, s->tmp, len + header_sz);
         pthread_cond_signal(&s->cond);
     }
 
@@ -991,8 +1000,7 @@ static int udp_read(URLContext *h, uint8_t *buf, int size)
 {
     UDPContext *s = h->priv_data;
     int ret;
-    struct sockaddr_storage addr;
-    socklen_t addr_len = sizeof(addr);
+    socklen_t addr_len = sizeof(s->last_recv_addr);
 #if HAVE_PTHREAD_CANCEL
     int avail, nonblock = h->flags & AVIO_FLAG_NONBLOCK;
 
@@ -1004,6 +1012,7 @@ static int udp_read(URLContext *h, uint8_t *buf, int size)
                 uint8_t tmp[4];
 
                 av_fifo_read(s->fifo, tmp, 4);
+                av_fifo_read(s->fifo, &s->last_recv_addr, sizeof(s->last_recv_addr));
                 avail = AV_RL32(tmp);
                 if(avail > size){
                     av_log(h, AV_LOG_WARNING, "Part of datagram lost due to insufficient buffer size\n");
@@ -1043,10 +1052,10 @@ static int udp_read(URLContext *h, uint8_t *buf, int size)
         if (ret < 0)
             return ret;
     }
-    ret = recvfrom(s->udp_fd, buf, size, 0, (struct sockaddr *)&addr, &addr_len);
+    ret = recvfrom(s->udp_fd, buf, size, 0, (struct sockaddr *)&s->last_recv_addr, &addr_len);
     if (ret < 0)
         return ff_neterrno();
-    if (ff_ip_check_source_lists(&addr, &s->filters))
+    if (ff_ip_check_source_lists(&s->last_recv_addr, &s->filters))
         return AVERROR(EINTR);
     return ret;
 }
