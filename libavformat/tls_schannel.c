@@ -140,7 +140,7 @@ static int tls_gen_self_signed(PCCERT_CONTEXT *crtctx, NCRYPT_KEY_HANDLE *key)
         goto fail;
     }
 
-    sspi_ret = NCryptCreatePersistedKey(provider, key, BCRYPT_RSA_ALGORITHM, FF_SCHANNEL_CONTAINER_NAME, 0, NCRYPT_OVERWRITE_KEY_FLAG);
+    sspi_ret = NCryptCreatePersistedKey(provider, key, BCRYPT_RSA_ALGORITHM, FF_SCHANNEL_CONTAINER_NAME, AT_SIGNATURE, NCRYPT_OVERWRITE_KEY_FLAG);
     if (sspi_ret != ERROR_SUCCESS) {
         av_log(NULL, AV_LOG_ERROR, "NCryptCreatePersistedKey failed(0x%lx)\n", sspi_ret);
         ret = AVERROR_EXTERNAL;
@@ -225,7 +225,7 @@ static int tls_gen_self_signed(PCCERT_CONTEXT *crtctx, NCRYPT_KEY_HANDLE *key)
         goto fail;
     }
 
-    NCryptFreeObject(provider);
+    //NCryptFreeObject(provider);
     av_free(subject.pbData);
     LocalFree(encoded_eku);
 
@@ -1013,6 +1013,27 @@ static int dtls_open(URLContext *h, const char *uri, int flags, AVDictionary **o
         ret = tls_gen_self_signed(&crtctx, &key);
         if (ret < 0)
             goto fail;
+
+        CRYPT_KEY_PROV_INFO *pi = NULL;
+        DWORD sz;
+        if (CertGetCertificateContextProperty(crtctx, CERT_KEY_PROV_INFO_PROP_ID, NULL, &sz)) {
+            pi = malloc(sz);
+            if (!CertGetCertificateContextProperty(crtctx, CERT_KEY_PROV_INFO_PROP_ID, pi, &sz))
+                return AVERROR_BUG;
+            printf("BLA: %S, %S, %ld, %ld, %ld, %ld\n", pi->pwszContainerName, pi->pwszProvName, pi->dwProvType, pi->dwFlags, pi->cProvParam, pi->dwKeySpec);
+        }
+
+        NCRYPT_KEY_HANDLE khndl = { 0 };
+        DWORD keySpec = 0;
+        BOOL callerFree = 0;
+        if (!CryptAcquireCertificatePrivateKey(crtctx, CRYPT_ACQUIRE_PREFER_NCRYPT_KEY_FLAG, NULL, &khndl, &keySpec, &callerFree)) {
+            printf("CryptAcquireCertificatePrivateKey failed\n");
+            //return AVERROR_EXTERNAL;
+        } else {
+            printf("Gotten pkey: 0x%llx, %ld, %d\n", khndl, keySpec, (int)callerFree);
+
+            //return AVERROR_BUG;
+        }
 
         schannel_cred.cCreds = 1;
         schannel_cred.paCred = &crtctx;
