@@ -57,14 +57,13 @@ typedef struct TLSShared {
     char underlying_host[200];
     int numerichost;
 
+    int external_sock;
+    URLContext *udp;
     URLContext *tcp;
 
     int is_dtls;
 
     enum DTLSState state;
-
-    int use_external_udp;
-    URLContext *udp;
 
     /* The certificate and private key content used for DTLS handshake */
     char* cert_buf;
@@ -89,14 +88,14 @@ typedef struct TLSShared {
     {"listen",     "Listen for incoming connections",     offsetof(pstruct, options_field . listen),    AV_OPT_TYPE_INT, { .i64 = 0 }, 0, 1, .flags = TLS_OPTFL }, \
     {"verifyhost", "Verify against a specific hostname",  offsetof(pstruct, options_field . host),      AV_OPT_TYPE_STRING, .flags = TLS_OPTFL }, \
     {"http_proxy", "Set proxy to tunnel through",         offsetof(pstruct, options_field . http_proxy), AV_OPT_TYPE_STRING, .flags = TLS_OPTFL }, \
-    {"use_external_udp", "Use external UDP from muxer or demuxer", offsetof(pstruct, options_field . use_external_udp), AV_OPT_TYPE_INT, { .i64 = 0}, 0, 1, .flags = TLS_OPTFL }, \
-    {"mtu",        "Maximum Transmission Unit",           offsetof(pstruct, options_field . mtu),       AV_OPT_TYPE_INT,  { .i64 = 0 }, 0, INT_MAX, .flags = TLS_OPTFL }
+    {"mtu",        "Maximum Transmission Unit",           offsetof(pstruct, options_field . mtu),       AV_OPT_TYPE_INT,  { .i64 = 0 }, 0, INT_MAX, .flags = TLS_OPTFL }, \
+    {"external_sock", "Use external socket",              offsetof(pstruct, options_field . external_sock), AV_OPT_TYPE_INT, { .i64 = 0}, 0, 1, .flags = TLS_OPTFL }
 
 int ff_tls_open_underlying(TLSShared *c, URLContext *parent, const char *uri, AVDictionary **options);
 
 int ff_url_read_all(const char *url, AVBPrint *bp);
 
-int ff_dtls_set_udp(URLContext *h, URLContext *udp);
+int ff_tls_set_external_socket(URLContext *h, URLContext *sock);
 
 int ff_dtls_export_materials(URLContext *h, char *dtls_srtp_materials, size_t materials_sz);
 
