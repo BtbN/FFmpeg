@@ -716,15 +716,14 @@ static int openssl_dtls_verify_callback(int preverify_ok, X509_STORE_CTX *ctx)
 
 static int dtls_handshake(URLContext *h)
 {
-    int ret = 0, r0, r1;
+    int ret = EINPROGRESS, r0, r1;
     TLSContext *p = h->priv_data;
 
     r0 = SSL_do_handshake(p->ssl);
     r1 = SSL_get_error(p->ssl, r0);
     if (r0 <= 0) {
         if (r1 != SSL_ERROR_WANT_READ && r1 != SSL_ERROR_WANT_WRITE && r1 != SSL_ERROR_ZERO_RETURN) {
-            av_log(p, AV_LOG_ERROR, "TLS: Read failed, r0=%d, r1=%d %s\n", r0, r1, openssl_get_error(p));
-            ret = AVERROR(EIO);
+            ret = print_ssl_error(h, r1);
             goto end;
         }
     } else {
@@ -734,7 +733,7 @@ static int dtls_handshake(URLContext *h)
     /* Check whether the DTLS is completed. */
     if (SSL_is_init_finished(p->ssl) != 1)
         goto end;
-
+    ret = 0;
     p->tls_shared.state = DTLS_STATE_FINISHED;
 end:
     return ret;
