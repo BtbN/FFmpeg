@@ -509,7 +509,7 @@ int ff_dtls_export_materials(URLContext *h, char *dtls_srtp_materials, size_t ma
     ret = SSL_export_keying_material(c->ssl, dtls_srtp_materials, materials_sz,
         dst, strlen(dst), NULL, 0, 0);
     if (!ret) {
-        av_log(c, AV_LOG_ERROR, "TLS: Failed to export SRTP material, %s\n", openssl_get_error(c));
+        av_log(c, AV_LOG_ERROR, "Failed to export SRTP material, %s\n", openssl_get_error(c));
         return -1;
     }
     return 0;
@@ -727,7 +727,7 @@ static int dtls_handshake(URLContext *h)
             goto end;
         }
     } else {
-        av_log(p, AV_LOG_TRACE, "TLS: Read %d bytes, r0=%d, r1=%d\n", r0, r0, r1);
+        av_log(p, AV_LOG_TRACE, "Read %d bytes, r0=%d, r1=%d\n", r0, r0, r1);
     }
 
     /* Check whether the DTLS is completed. */
@@ -768,7 +768,7 @@ static av_cold int openssl_init_ca_key_cert(URLContext *h)
             return ret;
         }
     } else if (c->is_dtls){
-        av_log(p, AV_LOG_ERROR, "TLS: Init cert failed, %s\n", openssl_get_error(p));
+        av_log(p, AV_LOG_ERROR, "Init cert failed, %s\n", openssl_get_error(p));
         ret = AVERROR(EINVAL);
         goto fail;
     }
@@ -784,12 +784,12 @@ static av_cold int openssl_init_ca_key_cert(URLContext *h)
     } else if (c->key_buf) {
         p->pkey = pkey = pkey_from_pem_string(c->key_buf, 1);
         if (SSL_CTX_use_PrivateKey(p->ctx, pkey) != 1) {
-            av_log(p, AV_LOG_ERROR, "TLS: Init SSL_CTX_use_PrivateKey failed, %s\n", openssl_get_error(p));
+            av_log(p, AV_LOG_ERROR, "Init SSL_CTX_use_PrivateKey failed, %s\n", openssl_get_error(p));
             ret = AVERROR(EINVAL);
             return ret;
         }
     } else if (c->is_dtls) {
-        av_log(p, AV_LOG_ERROR, "TLS: Init pkey failed, %s\n", openssl_get_error(p));
+        av_log(p, AV_LOG_ERROR, "Init pkey failed, %s\n", openssl_get_error(p));
         ret = AVERROR(EINVAL);
         goto fail;
     }
@@ -826,7 +826,7 @@ static int dtls_start(URLContext *h, const char *url, int flags, AVDictionary **
 
     /* For ECDSA, we could set the curves list. */
     if (SSL_CTX_set1_curves_list(p->ctx, curves) != 1) {
-        av_log(p, AV_LOG_ERROR, "TLS: Init SSL_CTX_set1_curves_list failed, curves=%s, %s\n",
+        av_log(p, AV_LOG_ERROR, "Init SSL_CTX_set1_curves_list failed, curves=%s, %s\n",
             curves, openssl_get_error(p));
         ret = AVERROR(EINVAL);
         return ret;
@@ -837,7 +837,7 @@ static int dtls_start(URLContext *h, const char *url, int flags, AVDictionary **
      * ensuring maximum compatibility.
      */
     if (SSL_CTX_set_cipher_list(p->ctx, ciphers) != 1) {
-        av_log(p, AV_LOG_ERROR, "TLS: Init SSL_CTX_set_cipher_list failed, ciphers=%s, %s\n",
+        av_log(p, AV_LOG_ERROR, "Init SSL_CTX_set_cipher_list failed, ciphers=%s, %s\n",
             ciphers, openssl_get_error(p));
         ret = AVERROR(EINVAL);
         return ret;
@@ -854,7 +854,7 @@ static int dtls_start(URLContext *h, const char *url, int flags, AVDictionary **
     SSL_CTX_set_read_ahead(p->ctx, 1);
     /* Setup the SRTP context */
     if (SSL_CTX_set_tlsext_use_srtp(p->ctx, profiles)) {
-        av_log(p, AV_LOG_ERROR, "TLS: Init SSL_CTX_set_tlsext_use_srtp failed, profiles=%s, %s\n",
+        av_log(p, AV_LOG_ERROR, "Init SSL_CTX_set_tlsext_use_srtp failed, profiles=%s, %s\n",
             profiles, openssl_get_error(p));
         ret = AVERROR(EINVAL);
         return ret;
@@ -906,12 +906,12 @@ static int dtls_start(URLContext *h, const char *url, int flags, AVDictionary **
         ret = dtls_handshake(h);
         // Fatal SSL error, for example, no available suite when peer is DTLS 1.0 while we are DTLS 1.2.
         if (ret < 0) {
-            av_log(p, AV_LOG_ERROR, "TLS: Failed to drive SSL context, ret=%d\n", ret);
+            av_log(p, AV_LOG_ERROR, "Failed to drive SSL context, ret=%d\n", ret);
             return AVERROR(EIO);
         }
     }
 
-    av_log(p, AV_LOG_VERBOSE, "TLS: Setup ok, MTU=%d\n", p->tls_shared.mtu);
+    av_log(p, AV_LOG_VERBOSE, "Setup ok, MTU=%d\n", p->tls_shared.mtu);
 
     ret = 0;
 fail:
