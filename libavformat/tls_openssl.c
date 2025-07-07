@@ -20,6 +20,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#include "libavutil/intreadwrite.h"
 #include "libavutil/mem.h"
 #include "network.h"
 #include "os_support.h"
@@ -559,6 +560,48 @@ static int tls_close(URLContext *h)
     return 0;
 }
 
+/*
+ * Trace a single TLS/DTLS record.
+ * 
+ * See RFC 5246 Section 6.2.1, RFC 6347 Section 4.1
+ * 
+ * @param data     Raw record (network byte‑order).
+ * @param length   Size of @data in bytes.
+ * @param incoming Non‑zero when the packet was received, zero when sent.
+ */
+static void openssl_state_trace(uint8_t *data, int length, int incoming)
+{
+    uint8_t  content_type   = 0;  /* TLS/DTLS ContentType       */
+    uint16_t record_length  = 0;  /* Length field from header   */
+    uint8_t  handshake_type = 0;  /* First byte of Handshake msg */
+    int is_dtls = 0;
+
+    /* ContentType is always the very first byte */
+    if (length >= 1)
+        content_type = AV_RB8(&data[0]);
+    if (length >= 3 && data[1] == DTLS1_VERSION_MAJOR)
+        is_dtls = 1;
+    /* TLS header is 5 bytes, DTLS header is 13 bytes */
+    if (length >= 13 && is_dtls)
+        record_length = AV_RB16(&data[11]);
+    else if (length >= 5 && !is_dtls)
+        record_length = AV_RB16(&data[3]);
+    /*
+     * HandshakeType values (TLS 1.0–1.2, DTLS 1.0/1.2)
+     * See RFC 5246 Section 7.4, RFC 6347 Section 4.2
+     *
+     * Only present when ContentType == handshake(22)
+     */
+    if (content_type == 22) {
+        int hs_off = is_dtls ? 13 : 5;
+        if (length > hs_off)
+            handshake_type = AV_RB8(&data[hs_off]);
+    }
+
+    av_log(NULL, AV_LOG_TRACE ,"TLS: Trace %s, len=%u, cnt=%u, size=%u, hs=%u\n",
+        (incoming? "RECV":"SEND"), length, content_type, record_length, handshake_type);
+}
+
 static int url_bio_create(BIO *b)
 {
     BIO_set_init(b, 1);
@@ -576,8 +619,10 @@ static int url_bio_bread(BIO *b, char *buf, int len)
 {
     TLSContext *c = BIO_get_data(b);
     int ret = ffurl_read(c->tls_shared.is_dtls ? c->tls_shared.udp : c->tls_shared.tcp, buf, len);
-    if (ret >= 0)
+    if (ret >= 0) {
+        openssl_state_trace((uint8_t*)buf, ret, 1);
         return ret;
+    }
     BIO_clear_retry_flags(b);
     if (ret == AVERROR_EXIT)
         return 0;
@@ -592,8 +637,10 @@ static int url_bio_bwrite(BIO *b, const char *buf, int len)
 {
     TLSContext *c = BIO_get_data(b);
     int ret = ffurl_write(c->tls_shared.is_dtls ? c->tls_shared.udp : c->tls_shared.tcp, buf, len);
-    if (ret >= 0)
+    if (ret >= 0) {
+        openssl_state_trace((uint8_t*)buf, ret, 0);
         return ret;
+    }
     BIO_clear_retry_flags(b);
     if (ret == AVERROR_EXIT)
         return 0;
