@@ -99,6 +99,7 @@ typedef struct UDPContext {
     struct sockaddr_storage dest_addr;
     int dest_addr_len;
     int is_connected;
+    int autodetect_dest;
 
     /* Circular Buffer variables for use in UDP receive code */
     int circular_buffer_size;
@@ -143,6 +144,7 @@ static const AVOption options[] = {
     { "broadcast", "explicitly allow or disallow broadcast destination",   OFFSET(is_broadcast),   AV_OPT_TYPE_BOOL,   { .i64 = 0  },     0, 1,       E },
     { "ttl",            "Time to live (multicast only)",                   OFFSET(ttl),            AV_OPT_TYPE_INT,    { .i64 = 16 },     0, 255,     E },
     { "connect",        "set if connect() should be called on socket",     OFFSET(is_connected),   AV_OPT_TYPE_BOOL,   { .i64 =  0 },     0, 1,       .flags = D|E },
+    { "autodetect_dest", "Auto detect destination from last received addr", OFFSET(autodetect_dest), AV_OPT_TYPE_BOOL, {.i64 = 0}, 0, 1,    D|E },
     { "fifo_size",      "set the UDP receiving circular buffer size, expressed as a number of packets with size of 188 bytes", OFFSET(circular_buffer_size), AV_OPT_TYPE_INT, {.i64 = 7*4096}, 0, INT_MAX, D },
     { "overrun_nonfatal", "survive in case of UDP receiving circular buffer overrun", OFFSET(overrun_nonfatal), AV_OPT_TYPE_BOOL, {.i64 = 0}, 0, 1,    D },
     { "timeout",        "set raise error timeout, in microseconds (only in read mode)",OFFSET(timeout),         AV_OPT_TYPE_INT,  {.i64 = 0}, 0, INT_MAX, D },
@@ -1144,6 +1146,8 @@ static int udp_write(URLContext *h, const uint8_t *buf, int size)
     }
 
     if (!s->is_connected) {
+        if (s->autodetect_dest && !s->dest_addr_len && !s->dest_addr.ss_family)
+            ff_udp_get_last_recv_addr(h, &s->dest_addr, &s->dest_addr_len);
         ret = sendto (s->udp_fd, buf, size, 0,
                       (struct sockaddr *) &s->dest_addr,
                       s->dest_addr_len);
