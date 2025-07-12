@@ -874,7 +874,9 @@ static int dtls_start(URLContext *h, const char *url, int flags, AVDictionary **
      * The SSL_do_handshake can't be called if DTLS hasn't prepare for udp.
      */
     if (p->tls_shared.external_sock != 1) {
-        ret = dtls_handshake(h);
+        do {
+            ret = dtls_handshake(h);
+        } while(ret > 0);
         // Fatal SSL error, for example, no available suite when peer is DTLS 1.0 while we are DTLS 1.2.
         if (ret < 0) {
             av_log(p, AV_LOG_ERROR, "TLS: Failed to drive SSL context, ret=%d\n", ret);
