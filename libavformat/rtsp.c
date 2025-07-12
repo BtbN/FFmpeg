@@ -143,17 +143,28 @@ static AVDictionary *map_to_opts(RTSPState *rt)
     return opts;
 }
 
+#define ERR_RET(c)      \
+    do {                \
+        int ret = c;    \
+        if (ret < 0)    \
+            return ret; \
+    } while (0)
+
 /**
  * Add the TLS options of the given RTSPState to the dict
  */
-static void copy_tls_opts_dict(RTSPState *rt, AVDictionary **dict)
+static int copy_tls_opts_dict(RTSPState *rt, AVDictionary **dict)
 {
-    av_dict_set_int(dict, "tls_verify", rt->tls_opts.verify, 0);
-    av_dict_set(dict, "ca_file", rt->tls_opts.ca_file, 0);
-    av_dict_set(dict, "cert_file", rt->tls_opts.cert_file, 0);
-    av_dict_set(dict, "key_file", rt->tls_opts.key_file, 0);
-    av_dict_set(dict, "verifyhost", rt->tls_opts.host, 0);
+    ERR_RET(av_dict_set_int(dict, "tls_verify", rt->tls_opts.verify, 0));
+    ERR_RET(av_dict_set(dict, "ca_file", rt->tls_opts.ca_file, 0));
+    ERR_RET(av_dict_set(dict, "cert_file", rt->tls_opts.cert_file, 0));
+    ERR_RET(av_dict_set(dict, "key_file", rt->tls_opts.key_file, 0));
+    ERR_RET(av_dict_set(dict, "verifyhost", rt->tls_opts.host, 0));
+
+    return 0;
 }
+
+#undef ERR_RET
 
 static void get_word_until_chars(char *buf, int buf_size,
                                  const char *sep, const char **pp)
@@ -602,8 +613,8 @@ static void sdp_parse_line(AVFormatContext *s, SDPParseState *s1,
                 if (proto[0] == '\0') {
                     /* relative control URL */
                     if (rtsp_st->control_url[strlen(rtsp_st->control_url)-1]!='/')
-                    av_strlcat(rtsp_st->control_url, "/",
-                               sizeof(rtsp_st->control_url));
+                        av_strlcat(rtsp_st->control_url, "/",
+                                   sizeof(rtsp_st->control_url));
                     av_strlcat(rtsp_st->control_url, p,
                                sizeof(rtsp_st->control_url));
                 } else
@@ -1837,8 +1848,14 @@ redirect:
         AVDictionary *options = NULL;
 
         av_dict_set_int(&options, "timeout", rt->stimeout, 0);
-        if (https_tunnel)
-            copy_tls_opts_dict(rt, &options);
+        if (https_tunnel) {
+            int ret = copy_tls_opts_dict(rt, &options);
+            if (ret < 0) {
+                av_dict_free(&options);
+                err = ret;
+                goto fail;
+            }
+        }
 
         ff_url_join(httpname, sizeof(httpname), https_tunnel ? "https" : "http", auth, host, port, "%s", path);
         snprintf(sessioncookie, sizeof(sessioncookie), "%08x%08x",
@@ -1927,8 +1944,14 @@ redirect:
         int ret;
         /* open the tcp connection */
         AVDictionary *proto_opts = NULL;
-        if (strcmp("tls", lower_rtsp_proto) == 0)
-            copy_tls_opts_dict(rt, &proto_opts);
+        if (strcmp("tls", lower_rtsp_proto) == 0) {
+            ret = copy_tls_opts_dict(rt, &proto_opts);
+            if (ret < 0) {
+                av_dict_free(&proto_opts);
+                err = ret;
+                goto fail;
+            }
+        }
 
         ff_url_join(tcpname, sizeof(tcpname), lower_rtsp_proto, NULL,
                     host, port,
@@ -2004,7 +2027,7 @@ redirect:
            if (CONFIG_RTSP_MUXER)
         err = ff_rtsp_setup_output_streams(s, host);
     else
-        av_assert0(0);
+        av_unreachable("Either muxer or demuxer must be enabled");
     if (err)
         goto fail;
 

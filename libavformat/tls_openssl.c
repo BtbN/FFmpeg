@@ -20,6 +20,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#include "libavutil/intreadwrite.h"
 #include "libavutil/mem.h"
 #include "network.h"
 #include "os_support.h"
@@ -508,7 +509,7 @@ int ff_dtls_export_materials(URLContext *h, char *dtls_srtp_materials, size_t ma
     ret = SSL_export_keying_material(c->ssl, dtls_srtp_materials, materials_sz,
         dst, strlen(dst), NULL, 0, 0);
     if (!ret) {
-        av_log(c, AV_LOG_ERROR, "TLS: Failed to export SRTP material, %s\n", openssl_get_error(c));
+        av_log(c, AV_LOG_ERROR, "Failed to export SRTP material, %s\n", openssl_get_error(c));
         return -1;
     }
     return 0;
@@ -553,10 +554,59 @@ static int tls_close(URLContext *h)
     }
     if (c->ctx)
         SSL_CTX_free(c->ctx);
-    ffurl_closep(&c->tls_shared.tcp);
+    if (c->tls_shared.external_sock != 1)
+        ffurl_closep(c->tls_shared.is_dtls ? &c->tls_shared.udp : &c->tls_shared.tcp);
+    if (c->tls_shared.cert_buf)
+        av_freep(&c->tls_shared.cert_buf);
+    if (c->tls_shared.key_buf)
+        av_freep(&c->tls_shared.key_buf);
     if (c->url_bio_method)
         BIO_meth_free(c->url_bio_method);
+    if (c->pkey)
+        EVP_PKEY_free(c->pkey);
     return 0;
+}
+
+/*
+ * Trace a single TLS/DTLS record.
+ * 
+ * See RFC 5246 Section 6.2.1, RFC 6347 Section 4.1
+ * 
+ * @param data     Raw record (network byte‑order).
+ * @param length   Size of @data in bytes.
+ * @param incoming Non‑zero when the packet was received, zero when sent.
+ */
+static void openssl_state_trace(uint8_t *data, int length, int incoming)
+{
+    uint8_t  content_type   = 0;  /* TLS/DTLS ContentType       */
+    uint16_t record_length  = 0;  /* Length field from header   */
+    uint8_t  handshake_type = 0;  /* First byte of Handshake msg */
+    int is_dtls = 0;
+
+    /* ContentType is always the very first byte */
+    if (length >= 1)
+        content_type = AV_RB8(&data[0]);
+    if (length >= 3 && data[1] == DTLS1_VERSION_MAJOR)
+        is_dtls = 1;
+    /* TLS header is 5 bytes, DTLS header is 13 bytes */
+    if (length >= 13 && is_dtls)
+        record_length = AV_RB16(&data[11]);
+    else if (length >= 5 && !is_dtls)
+        record_length = AV_RB16(&data[3]);
+    /*
+     * HandshakeType values (TLS 1.0–1.2, DTLS 1.0/1.2)
+     * See RFC 5246 Section 7.4, RFC 6347 Section 4.2
+     *
+     * Only present when ContentType == handshake(22)
+     */
+    if (content_type == 22) {
+        int hs_off = is_dtls ? 13 : 5;
+        if (length > hs_off)
+            handshake_type = AV_RB8(&data[hs_off]);
+    }
+
+    av_log(NULL, AV_LOG_TRACE ,"TLS: Trace %s, len=%u, cnt=%u, size=%u, hs=%u\n",
+        (incoming? "RECV":"SEND"), length, content_type, record_length, handshake_type);
 }
 
 static int url_bio_create(BIO *b)
@@ -576,8 +626,10 @@ static int url_bio_bread(BIO *b, char *buf, int len)
 {
     TLSContext *c = BIO_get_data(b);
     int ret = ffurl_read(c->tls_shared.is_dtls ? c->tls_shared.udp : c->tls_shared.tcp, buf, len);
-    if (ret >= 0)
+    if (ret >= 0) {
+        openssl_state_trace((uint8_t*)buf, ret, 1);
         return ret;
+    }
     BIO_clear_retry_flags(b);
     if (ret == AVERROR_EXIT)
         return 0;
@@ -592,8 +644,10 @@ static int url_bio_bwrite(BIO *b, const char *buf, int len)
 {
     TLSContext *c = BIO_get_data(b);
     int ret = ffurl_write(c->tls_shared.is_dtls ? c->tls_shared.udp : c->tls_shared.tcp, buf, len);
-    if (ret >= 0)
+    if (ret >= 0) {
+        openssl_state_trace((uint8_t*)buf, ret, 0);
         return ret;
+    }
     BIO_clear_retry_flags(b);
     if (ret == AVERROR_EXIT)
         return 0;
@@ -669,25 +723,24 @@ static int openssl_dtls_verify_callback(int preverify_ok, X509_STORE_CTX *ctx)
 
 static int dtls_handshake(URLContext *h)
 {
-    int ret = 0, r0, r1;
+    int ret = EINPROGRESS, r0, r1;
     TLSContext *p = h->priv_data;
 
     r0 = SSL_do_handshake(p->ssl);
     r1 = SSL_get_error(p->ssl, r0);
     if (r0 <= 0) {
         if (r1 != SSL_ERROR_WANT_READ && r1 != SSL_ERROR_WANT_WRITE && r1 != SSL_ERROR_ZERO_RETURN) {
-            av_log(p, AV_LOG_ERROR, "TLS: Read failed, r0=%d, r1=%d %s\n", r0, r1, openssl_get_error(p));
-            ret = AVERROR(EIO);
+            ret = print_ssl_error(h, r1);
             goto end;
         }
     } else {
-        av_log(p, AV_LOG_TRACE, "TLS: Read %d bytes, r0=%d, r1=%d\n", r0, r0, r1);
+        av_log(p, AV_LOG_TRACE, "Read %d bytes, r0=%d, r1=%d\n", r0, r0, r1);
     }
 
     /* Check whether the DTLS is completed. */
     if (SSL_is_init_finished(p->ssl) != 1)
         goto end;
-
+    ret = 0;
     p->tls_shared.state = DTLS_STATE_FINISHED;
 end:
     return ret;
@@ -722,7 +775,7 @@ static av_cold int openssl_init_ca_key_cert(URLContext *h)
             return ret;
         }
     } else if (c->is_dtls){
-        av_log(p, AV_LOG_ERROR, "TLS: Init cert failed, %s\n", openssl_get_error(p));
+        av_log(p, AV_LOG_ERROR, "Init cert failed, %s\n", openssl_get_error(p));
         ret = AVERROR(EINVAL);
         goto fail;
     }
@@ -738,12 +791,12 @@ static av_cold int openssl_init_ca_key_cert(URLContext *h)
     } else if (c->key_buf) {
         p->pkey = pkey = pkey_from_pem_string(c->key_buf, 1);
         if (SSL_CTX_use_PrivateKey(p->ctx, pkey) != 1) {
-            av_log(p, AV_LOG_ERROR, "TLS: Init SSL_CTX_use_PrivateKey failed, %s\n", openssl_get_error(p));
+            av_log(p, AV_LOG_ERROR, "Init SSL_CTX_use_PrivateKey failed, %s\n", openssl_get_error(p));
             ret = AVERROR(EINVAL);
             return ret;
         }
     } else if (c->is_dtls) {
-        av_log(p, AV_LOG_ERROR, "TLS: Init pkey failed, %s\n", openssl_get_error(p));
+        av_log(p, AV_LOG_ERROR, "Init pkey failed, %s\n", openssl_get_error(p));
         ret = AVERROR(EINVAL);
         goto fail;
     }
@@ -780,7 +833,7 @@ static int dtls_start(URLContext *h, const char *url, int flags, AVDictionary **
 
     /* For ECDSA, we could set the curves list. */
     if (SSL_CTX_set1_curves_list(p->ctx, curves) != 1) {
-        av_log(p, AV_LOG_ERROR, "TLS: Init SSL_CTX_set1_curves_list failed, curves=%s, %s\n",
+        av_log(p, AV_LOG_ERROR, "Init SSL_CTX_set1_curves_list failed, curves=%s, %s\n",
             curves, openssl_get_error(p));
         ret = AVERROR(EINVAL);
         return ret;
@@ -791,7 +844,7 @@ static int dtls_start(URLContext *h, const char *url, int flags, AVDictionary **
      * ensuring maximum compatibility.
      */
     if (SSL_CTX_set_cipher_list(p->ctx, ciphers) != 1) {
-        av_log(p, AV_LOG_ERROR, "TLS: Init SSL_CTX_set_cipher_list failed, ciphers=%s, %s\n",
+        av_log(p, AV_LOG_ERROR, "Init SSL_CTX_set_cipher_list failed, ciphers=%s, %s\n",
             ciphers, openssl_get_error(p));
         ret = AVERROR(EINVAL);
         return ret;
@@ -808,7 +861,7 @@ static int dtls_start(URLContext *h, const char *url, int flags, AVDictionary **
     SSL_CTX_set_read_ahead(p->ctx, 1);
     /* Setup the SRTP context */
     if (SSL_CTX_set_tlsext_use_srtp(p->ctx, profiles)) {
-        av_log(p, AV_LOG_ERROR, "TLS: Init SSL_CTX_set_tlsext_use_srtp failed, profiles=%s, %s\n",
+        av_log(p, AV_LOG_ERROR, "Init SSL_CTX_set_tlsext_use_srtp failed, profiles=%s, %s\n",
             profiles, openssl_get_error(p));
         ret = AVERROR(EINVAL);
         return ret;
@@ -860,30 +913,16 @@ static int dtls_start(URLContext *h, const char *url, int flags, AVDictionary **
         ret = dtls_handshake(h);
         // Fatal SSL error, for example, no available suite when peer is DTLS 1.0 while we are DTLS 1.2.
         if (ret < 0) {
-            av_log(p, AV_LOG_ERROR, "TLS: Failed to drive SSL context, ret=%d\n", ret);
+            av_log(p, AV_LOG_ERROR, "Failed to drive SSL context, ret=%d\n", ret);
             return AVERROR(EIO);
         }
     }
 
-    av_log(p, AV_LOG_VERBOSE, "TLS: Setup ok, MTU=%d\n", p->tls_shared.mtu);
+    av_log(p, AV_LOG_VERBOSE, "Setup ok, MTU=%d\n", p->tls_shared.mtu);
 
     ret = 0;
 fail:
     return ret;
-}
-
-/**
- * Cleanup the DTLS context.
- */
-static av_cold int dtls_close(URLContext *h)
-{
-    TLSContext *ctx = h->priv_data;
-    SSL_free(ctx->ssl);
-    SSL_CTX_free(ctx->ctx);
-    av_freep(&ctx->tls_shared.cert_buf);
-    av_freep(&ctx->tls_shared.key_buf);
-    EVP_PKEY_free(ctx->pkey);
-    return 0;
 }
 
 static int tls_open(URLContext *h, const char *uri, int flags, AVDictionary **options)
@@ -1029,7 +1068,7 @@ const URLProtocol ff_dtls_protocol = {
     .name           = "dtls",
     .url_open2      = dtls_start,
     .url_handshake  = dtls_handshake,
-    .url_close      = dtls_close,
+    .url_close      = tls_close,
     .url_read       = tls_read,
     .url_write      = tls_write,
     .url_get_file_handle = tls_get_file_handle,
