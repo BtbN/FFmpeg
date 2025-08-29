@@ -3383,6 +3383,7 @@ pad_cuda_filter_deps_any="cuda_nvcc cuda_llvm"
 sharpen_npp_filter_deps="ffnvcodec libnpp"
 
 ddagrab_filter_deps="d3d11va IDXGIOutput1 DXGI_OUTDUPL_FRAME_INFO"
+gfxcapture_filter_deps="d3d11va IGraphicsCaptureSession"
 scale_d3d11_filter_deps="d3d11va"
 
 amf_deps_any="libdl LoadLibrary"
@@ -6891,6 +6892,7 @@ check_type "windows.h" "DPI_AWARENESS_CONTEXT" -D_WIN32_WINNT=0x0A00
 check_type "windows.h security.h schnlsp.h" SecPkgContext_KeyingMaterialInfo -DSECURITY_WIN32
 check_type "d3d9.h dxva2api.h" DXVA2_ConfigPictureDecode -D_WIN32_WINNT=0x0602
 check_func_headers mfapi.h MFCreateAlignedMemoryBuffer -lmfplat
+check_type "windows.h windows.graphics.capture.h" IGraphicsCaptureSession -D_WIN32_WINNT=0x0A00 -DCOBJMACROS -DWIDL_using_Windows_Graphics_Capture
 
 check_type "vdpau/vdpau.h" "VdpPictureInfoHEVC"
 check_type "vdpau/vdpau.h" "VdpPictureInfoVP9"
